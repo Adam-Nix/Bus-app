@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  DEFAULT_FAVOURITES,
+  BUILT_IN_STOPS,
   defaultRoutes,
   getFavourite,
   getFavourites,
-  migrateFavourites,
+  isBuiltIn,
   removeFavourite,
   saveFavourite,
 } from '../src/store';
@@ -13,109 +13,69 @@ const LIMERICK_IT = '8400B6069401';
 const CITY = '8400B610001';
 const MAYORSTONE = '8400B6068701';
 const COLBERT = '8400B635041';
-const DEFAULTS = [LIMERICK_IT, CITY, MAYORSTONE, COLBERT];
+const BUILT_IN = [LIMERICK_IT, CITY, MAYORSTONE, COLBERT];
 
-function fakeStorage(initial: Record<string, string> = {}) {
+function useStorage(initial: Record<string, string> = {}) {
   const data = new Map(Object.entries(initial));
-  return {
+  vi.stubGlobal('localStorage', {
     getItem: (k: string) => data.get(k) ?? null,
     setItem: (k: string, v: string) => void data.set(k, v),
     removeItem: (k: string) => void data.delete(k),
-    data,
-  };
-}
-
-let storage: ReturnType<typeof fakeStorage>;
-function useStorage(initial: Record<string, string> = {}) {
-  storage = fakeStorage(initial);
-  vi.stubGlobal('localStorage', storage);
+  });
 }
 beforeEach(() => useStorage());
 
 const atcos = () => getFavourites().map((f) => f.atco);
 
-describe('saved stops', () => {
-  it('starts with Limerick IT, the city, Mayorstone Upper and Colbert Station', () => {
+describe('built-in stops', () => {
+  it('are Limerick IT, the city, Mayorstone Upper and Colbert Station', () => {
     expect(getFavourites().map((f) => f.name)).toEqual([
       'Limerick IT',
       "City (Harvey's Quay)",
       'Mayorstone Upper',
       'Colbert Station',
     ]);
+    expect(BUILT_IN.every(isBuiltIn)).toBe(true);
+  });
+
+  it('open on the 302, or the 55 at Colbert Station', () => {
     expect(defaultRoutes(LIMERICK_IT)).toEqual(['302']);
     expect(defaultRoutes(CITY)).toEqual(['302']);
     expect(defaultRoutes(MAYORSTONE)).toEqual(['302']);
     expect(defaultRoutes(COLBERT)).toEqual(['55']);
-  });
-
-  it('removes and saves stops again', () => {
-    removeFavourite(LIMERICK_IT);
-    expect(getFavourite(LIMERICK_IT)).toBeUndefined();
-    saveFavourite({ atco: LIMERICK_IT, name: 'Limerick IT' });
-    expect(atcos()).toEqual([CITY, MAYORSTONE, COLBERT, LIMERICK_IT]);
-  });
-
-  it('shows every route at stops without a default', () => {
     expect(defaultRoutes('8400B6068801')).toEqual([]);
   });
 
-  it('never changes the built-in defaults', () => {
-    saveFavourite({ atco: 'X', name: 'Somewhere' });
-    expect(DEFAULT_FAVOURITES.map((f) => f.atco)).toEqual(DEFAULTS);
-  });
-});
-
-describe('migrateFavourites', () => {
-  it('upgrades the first version, keeping stops the user added', () => {
-    useStorage({
-      favourites: JSON.stringify([
-        { atco: '8400B6370801', name: 'TUS Moylish', routes: ['302'] },
-        { atco: 'X', name: 'Elsewhere', routes: ['7'] },
-      ]),
-    });
-    migrateFavourites();
-    expect(atcos()).toEqual([...DEFAULTS, 'X']);
+  it("can't be removed", () => {
+    removeFavourite(COLBERT);
+    expect(atcos()).toEqual(BUILT_IN);
+    expect(getFavourite(COLBERT)?.name).toBe('Colbert Station');
   });
 
-  it('replaces the combined TUS board and both Mayorstone entries from version 3', () => {
+  it('are always there, whatever an older version stored', () => {
     useStorage({
-      defaultsVersion: '3',
       favourites: JSON.stringify([
         { atco: '8400B6370801,8400B6069401', name: 'TUS Moylish' },
+        { atco: '8400B6370801', name: 'TUS Moylish', routes: ['302'] },
         { atco: LIMERICK_IT, name: 'Mayorstone Upper (to town)' },
-        { atco: MAYORSTONE, name: 'Mayorstone Upper (to TUS)' },
-        { atco: COLBERT, name: 'Colbert Station' },
-      ]),
-    });
-    migrateFavourites();
-    expect(getFavourites()).toEqual(DEFAULT_FAVOURITES);
-  });
-
-  it('brings back Colbert Station if it went missing', () => {
-    useStorage({
-      defaultsVersion: '4',
-      favourites: JSON.stringify([
-        { atco: LIMERICK_IT, name: 'Limerick IT' },
-        { atco: CITY, name: "City (Harvey's Quay)" },
-        { atco: MAYORSTONE, name: 'Mayorstone Upper' },
         { atco: 'X', name: 'Elsewhere' },
       ]),
     });
-    migrateFavourites();
-    expect(atcos()).toEqual([...DEFAULTS, 'X']);
+    expect(getFavourites()).toEqual([...BUILT_IN_STOPS, { atco: 'X', name: 'Elsewhere' }]);
+  });
+});
+
+describe('stops the user saves', () => {
+  it('come after the built-in stops and can be removed', () => {
+    saveFavourite({ atco: 'X', name: 'Elsewhere' });
+    saveFavourite({ atco: 'Y', name: 'Somewhere' });
+    expect(atcos()).toEqual([...BUILT_IN, 'X', 'Y']);
+    removeFavourite('X');
+    expect(atcos()).toEqual([...BUILT_IN, 'Y']);
   });
 
-  it('runs only once', () => {
-    useStorage({ favourites: JSON.stringify([{ atco: '8400B6370801', name: 'TUS Moylish' }]) });
-    migrateFavourites();
-    removeFavourite(CITY);
-    migrateFavourites();
-    expect(atcos()).toEqual([LIMERICK_IT, MAYORSTONE, COLBERT]);
-  });
-
-  it('leaves new installs on the defaults', () => {
-    migrateFavourites();
-    expect(storage.data.has('favourites')).toBe(false);
-    expect(atcos()).toEqual(DEFAULTS);
+  it('never duplicate a built-in stop', () => {
+    saveFavourite({ atco: COLBERT, name: 'Colbert again' });
+    expect(atcos()).toEqual(BUILT_IN);
   });
 });

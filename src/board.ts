@@ -8,6 +8,7 @@ import {
   getFavourite,
   defaultRoutes,
   getFavourites,
+  isBuiltIn,
   removeFavourite,
   saveFavourite,
   setLastStop,
@@ -201,11 +202,16 @@ function renderHead(s: State): string {
         </label>
         <p class="stop-sub">${escapeHtml(stopSubtitle(s))}</p>
       </div>
-      <button class="save" data-action="favourite" aria-pressed="${Boolean(favourite)}"
+      ${
+        // Built-in stops are always in the dropdown, so there's nothing to toggle.
+        isBuiltIn(s.atco)
+          ? ''
+          : `<button class="save" data-action="favourite" aria-pressed="${Boolean(favourite)}"
         aria-label="Save stop" title="Saved stops appear in this dropdown and on the Stops page">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
         <span aria-hidden="true">${favourite ? 'Saved' : 'Save'}</span>
-      </button>
+      </button>`
+      }
     </div>`;
 }
 

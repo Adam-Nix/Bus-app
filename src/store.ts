@@ -56,8 +56,11 @@ const HARVEYS_QUAY = '8400B610001';
 const MAYORSTONE_UPPER = '8400B6068701';
 const COLBERT_STATION_DEPARTURES = '8400B635041';
 
-/** In dropdown order; the first is where the app opens. */
-export const DEFAULT_FAVOURITES: readonly SavedStop[] = [
+/**
+ * Built into the app: always in the dropdown, in this order, and can't be
+ * removed. The first is where the app opens.
+ */
+export const BUILT_IN_STOPS: readonly SavedStop[] = [
   { atco: LIMERICK_IT, name: 'Limerick IT' },
   { atco: HARVEYS_QUAY, name: "City (Harvey's Quay)" },
   { atco: MAYORSTONE_UPPER, name: 'Mayorstone Upper' },
@@ -71,26 +74,27 @@ const DEFAULT_ROUTES: Record<string, string[]> = {
   [COLBERT_STATION_DEPARTURES]: ['55'],
 };
 
-// Boards earlier versions saved by default that are no longer used.
-const RETIRED_DEFAULTS = new Set(['8400B6370801', '8400B6370801,8400B6069401']);
+// Stops earlier versions saved automatically and that are no longer used.
+const RETIRED_STOPS = new Set(['8400B6370801', '8400B6370801,8400B6069401']);
 
-const CURRENT_DEFAULTS_VERSION = 5;
-
+// Holds only the stops people saved themselves. Older versions also stored
+// the built-in stops here; those entries are skipped when reading.
 const FAVOURITES_KEY = 'favourites';
-const DEFAULTS_VERSION_KEY = 'defaultsVersion';
 const LAST_STOP_KEY = 'lastStop';
 
-function readStoredFavourites(): SavedStop[] | null {
-  return readJson<SavedStop[]>(FAVOURITES_KEY);
+export function isBuiltIn(atco: string): boolean {
+  return BUILT_IN_STOPS.some((b) => b.atco === atco);
 }
 
+function getOwnStops(): SavedStop[] {
+  return (readJson<SavedStop[]>(FAVOURITES_KEY) ?? [])
+    .filter((f) => !isBuiltIn(f.atco) && !RETIRED_STOPS.has(f.atco))
+    .map(({ atco, name }) => ({ atco, name }));
+}
+
+/** Built-in stops first, then any the user saved. */
 export function getFavourites(): SavedStop[] {
-  const stored = readStoredFavourites();
-  return (stored ?? DEFAULT_FAVOURITES).map(({ atco, name }) => ({ atco, name }));
-}
-
-function setFavourites(favourites: SavedStop[]): void {
-  write(FAVOURITES_KEY, JSON.stringify(favourites));
+  return [...BUILT_IN_STOPS.map((b) => ({ ...b })), ...getOwnStops()];
 }
 
 export function getFavourite(atco: string): SavedStop | undefined {
@@ -98,44 +102,14 @@ export function getFavourite(atco: string): SavedStop | undefined {
 }
 
 export function saveFavourite(stop: SavedStop): void {
-  const favourites = getFavourites();
-  const index = favourites.findIndex((f) => f.atco === stop.atco);
-  if (index === -1) favourites.push(stop);
-  else favourites[index] = stop;
-  setFavourites(favourites);
+  if (isBuiltIn(stop.atco)) return;
+  const own = getOwnStops().filter((f) => f.atco !== stop.atco);
+  write(FAVOURITES_KEY, JSON.stringify([...own, stop]));
 }
 
+/** Removes a stop the user saved; built-in stops stay. */
 export function removeFavourite(atco: string): void {
-  setFavourites(getFavourites().filter((f) => f.atco !== atco));
-}
-
-/**
- * One-off upgrade for people who saved stops on an older version: the
- * built-in stops are replaced with the current ones, any stops they saved
- * themselves are kept, and every built-in stop is put back if missing.
- */
-export function migrateFavourites(): void {
-  const version = Number(read(DEFAULTS_VERSION_KEY) ?? 1);
-  if (version >= CURRENT_DEFAULTS_VERSION) return;
-  const stored = readStoredFavourites();
-  if (stored) {
-    let favourites = stored.map(({ atco, name }) => ({ atco, name }));
-    if (version < 4) {
-      // The built-in stops changed; drop the old ones and re-add below.
-      favourites = favourites.filter(
-        (f) => !RETIRED_DEFAULTS.has(f.atco) && !DEFAULT_FAVOURITES.some((d) => d.atco === f.atco),
-      );
-    }
-    // Version 4 could leave Colbert Station out, and it's easy to remove a
-    // stop by accident, so restore any missing built-in stop in its place.
-    DEFAULT_FAVOURITES.forEach((d, i) => {
-      if (!favourites.some((f) => f.atco === d.atco)) {
-        favourites.splice(Math.min(i, favourites.length), 0, { atco: d.atco, name: d.name });
-      }
-    });
-    setFavourites(favourites);
-  }
-  write(DEFAULTS_VERSION_KEY, String(CURRENT_DEFAULTS_VERSION));
+  write(FAVOURITES_KEY, JSON.stringify(getOwnStops().filter((f) => f.atco !== atco)));
 }
 
 /** The last stop viewed, for the Stops page's back link. */
