@@ -36,6 +36,12 @@ function route(): void {
   });
 }
 
+// Every launch starts on the first built-in stop. A stop left in the address
+// from last time (possibly one an older version used) would otherwise win.
+if (location.hash.startsWith('#/stop/')) {
+  history.replaceState(null, '', location.pathname + location.search);
+}
+
 window.addEventListener('hashchange', route);
 route();
 
