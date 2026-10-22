@@ -329,7 +329,8 @@ async function refresh(manual = false): Promise<void> {
   s.loading = true;
   render();
   try {
-    const missing = s.atcos.filter((a) => !s.stops[a]);
+    // Stops saved by older versions lack the location the weather needs.
+    const missing = s.atcos.filter((a) => !s.stops[a]?.location);
     const [board, infos] = await Promise.all([loadBoard(s.atcos), Promise.all(missing.map(getStopInfo))]);
     if (state !== s) return; // Navigated away while loading.
     s.board = board;
