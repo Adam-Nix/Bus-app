@@ -100,12 +100,18 @@ export function buildDepartures(
     const live = vehicle && (!vehicle.date || vehicle.date === date) ? vehicle : undefined;
 
     let stopsAway: number | null = null;
-    if (live?.progress && visit.before.length > 0) {
+    if (live?.progress) {
       const prev = live.progress.prev_stop;
-      const prevIndex = visit.before.lastIndexOf(prev);
-      // The bus has already left this stop, or is somewhere past it.
-      if (prev === atco || prevIndex === -1) continue;
-      stopsAway = visit.before.length - prevIndex;
+      if (visit.before.length === 0) {
+        // This is where the route starts: once the bus has passed a later
+        // stop it has left. Still on this stop means waiting or just pulling out.
+        if (prev !== atco) continue;
+      } else {
+        const prevIndex = visit.before.lastIndexOf(prev);
+        // The bus has already left this stop, or is somewhere past it.
+        if (prev === atco || prevIndex === -1) continue;
+        stopsAway = visit.before.length - prevIndex;
+      }
     }
 
     const delay = live ? (live.delay ?? 0) : null;

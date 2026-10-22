@@ -131,7 +131,12 @@ describe('buildDepartures', () => {
     expect(result.map((d) => d.tripId)).toEqual([2, 1, 3]);
   });
 
-  it('does not use progress when the stop is the first on the trip', () => {
+  it('drops a bus that has left the stop where its route starts', () => {
+    const gone = vehicle(1, { delay: -300, progress: { prev_stop: 'C', next_stop: 'D', progress: 0.5 } });
+    expect(buildDepartures(STOP, [scheduled(1, '15:40', [])], [gone], now)).toEqual([]);
+  });
+
+  it('keeps a bus waiting at the stop where its route starts', () => {
     const atTerminus = vehicle(1, { progress: { prev_stop: STOP, next_stop: 'A', progress: 0 } });
     const [d] = buildDepartures(STOP, [scheduled(1, '15:55', [])], [atTerminus], now);
     expect(d.tripId).toBe(1);

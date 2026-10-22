@@ -47,35 +47,34 @@ export interface SavedStop {
   name: string;
 }
 
-const TUS_MOYLISH_STOP = '8400B6370801';
-// The 302 is a loop. It passes this stop a minute before TUS...
-const MAYORSTONE_UPPER_TO_TUS = '8400B6068701';
-// ...then goes round Caherdavin and passes this one on its way into town,
-// so it's the same bus, later.
-const MAYORSTONE_UPPER_TO_TOWN = '8400B6069401';
-const TUS_MOYLISH = `${TUS_MOYLISH_STOP},${MAYORSTONE_UPPER_TO_TOWN}`;
+// The 302 is a loop from the city out past the college and back. It's caught
+// into the city at Limerick IT (on the Cratloe Road; bustimes.org calls it
+// Mayorstone Upper), and back from Harvey's Quay to Mayorstone Upper, the
+// stop across the road.
+const LIMERICK_IT = '8400B6069401';
+const HARVEYS_QUAY = '8400B610001';
+const MAYORSTONE_UPPER = '8400B6068701';
 const COLBERT_STATION_DEPARTURES = '8400B635041';
-
-const MAYORSTONE_STOPS: readonly SavedStop[] = [
-  { atco: MAYORSTONE_UPPER_TO_TOWN, name: 'Mayorstone Upper (to town)' },
-  { atco: MAYORSTONE_UPPER_TO_TUS, name: 'Mayorstone Upper (to TUS)' },
-];
 
 /** In dropdown order; the first is where the app opens. */
 export const DEFAULT_FAVOURITES: readonly SavedStop[] = [
-  { atco: TUS_MOYLISH, name: 'TUS Moylish' },
-  ...MAYORSTONE_STOPS,
+  { atco: LIMERICK_IT, name: 'Limerick IT' },
+  { atco: HARVEYS_QUAY, name: "City (Harvey's Quay)" },
+  { atco: MAYORSTONE_UPPER, name: 'Mayorstone Upper' },
   { atco: COLBERT_STATION_DEPARTURES, name: 'Colbert Station' },
 ];
 
 const DEFAULT_ROUTES: Record<string, string[]> = {
-  [TUS_MOYLISH]: ['302'],
-  [MAYORSTONE_UPPER_TO_TOWN]: ['302'],
-  [MAYORSTONE_UPPER_TO_TUS]: ['302'],
+  [LIMERICK_IT]: ['302'],
+  [HARVEYS_QUAY]: ['302'],
+  [MAYORSTONE_UPPER]: ['302'],
   [COLBERT_STATION_DEPARTURES]: ['55'],
 };
 
-const CURRENT_DEFAULTS_VERSION = 3;
+// Boards earlier versions saved by default that are no longer used.
+const RETIRED_DEFAULTS = new Set(['8400B6370801', '8400B6370801,8400B6069401']);
+
+const CURRENT_DEFAULTS_VERSION = 4;
 
 const FAVOURITES_KEY = 'favourites';
 const DEFAULTS_VERSION_KEY = 'defaultsVersion';
@@ -114,36 +113,29 @@ export function removeFavourite(atco: string): void {
 }
 
 /**
- * One-off upgrades for people who saved stops on an older version: moves
- * route filters out of the saved-stop list and adds stops that became
- * defaults later, without bringing back ones they removed.
+ * One-off upgrade for people who saved stops on an older version: the
+ * built-in stops are replaced with the current ones, and any stops they
+ * saved themselves are kept after them.
  */
 export function migrateFavourites(): void {
   const version = Number(read(DEFAULTS_VERSION_KEY) ?? 1);
   if (version >= CURRENT_DEFAULTS_VERSION) return;
   const stored = readStoredFavourites();
   if (stored) {
-    let favourites = stored;
-    if (version < 2) {
-      // TUS Moylish became a combined board with Mayorstone Upper, and
-      // Colbert Station was added.
-      favourites = favourites.map((f) => (f.atco === TUS_MOYLISH_STOP ? { ...f, atco: TUS_MOYLISH } : f));
-      for (const f of favourites) {
-        if (f.routes && read(ROUTES_PREFIX + f.atco) === null) setRouteFilter(f.atco, f.routes);
-      }
-      if (!favourites.some((f) => f.atco === COLBERT_STATION_DEPARTURES)) {
-        favourites.push({ atco: COLBERT_STATION_DEPARTURES, name: 'Colbert Station' });
-      }
+    // Version 1 kept route filters inside the saved-stop list.
+    for (const f of stored) {
+      if (f.routes && read(ROUTES_PREFIX + f.atco) === null) setRouteFilter(f.atco, f.routes);
     }
-    if (version < 3) {
-      // Both Mayorstone Upper stops were added, right after TUS Moylish.
-      const missing = MAYORSTONE_STOPS.filter((m) => !favourites.some((f) => f.atco === m.atco));
-      const tus = favourites.findIndex((f) => f.atco === TUS_MOYLISH);
-      favourites.splice(tus + 1, 0, ...missing);
-    }
-    setFavourites(favourites.map(({ atco, name }) => ({ atco, name })));
+    const defaults = DEFAULT_FAVOURITES.map(({ atco, name }) => ({ atco, name }));
+    const kept = stored
+      .filter((f) => !RETIRED_DEFAULTS.has(f.atco) && !defaults.some((d) => d.atco === f.atco))
+      .map(({ atco, name }) => ({ atco, name }));
+    // Colbert Station only became a default in version 2; if it's missing
+    // after that, they removed it on purpose.
+    const colbert = defaults.pop()!;
+    if (version < 2 || stored.some((f) => f.atco === colbert.atco)) kept.unshift(colbert);
+    setFavourites([...defaults, ...kept]);
   }
-  if (getLastStop() === TUS_MOYLISH_STOP) setLastStop(TUS_MOYLISH);
   write(DEFAULTS_VERSION_KEY, String(CURRENT_DEFAULTS_VERSION));
 }
 
