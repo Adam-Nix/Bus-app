@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Next Bus</title>
+    <meta name="description" content="Live bus departures for your stop, powered by bustimes.org.">
+    <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#101418" media="(prefers-color-scheme: dark)">
+    <meta name="color-scheme" content="light dark">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Next Bus">
+    <meta name="format-detection" content="telephone=no">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="preconnect" href="https://bustimes.org" crossorigin>
+  </head>
+  <body>
+    <a class="skip" href="#app">Skip to content</a>
+    <header class="topbar">
+      <a class="brand" href="#/" data-nav="board">
+        <img src="favicon.svg" alt="" width="28" height="28">
+        <span>Next Bus</span>
+      </a>
+      <nav aria-label="Main">
+        <a class="nav-link" href="#/stops" data-nav="stops">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+          Stops
+        </a>
+      </nav>
+    </header>
+    <main id="app" tabindex="-1"></main>
+    <div id="announcer" class="visually-hidden" role="status" aria-live="polite"></div>
+    <noscript><p class="noscript">Next Bus needs JavaScript to load live departures.</p></noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
