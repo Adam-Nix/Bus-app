@@ -81,6 +81,14 @@ describe('buildDepartures', () => {
     expect(d.vehicleName).toBe('EWD120 - 241-L-2269');
   });
 
+  it('tags the stop and works out when the bus reaches the end of its route', () => {
+    const [untracked] = buildDepartures(STOP, [scheduled(1, '16:00')], [], now);
+    expect(untracked.stop).toBe(STOP);
+    expect(untracked.arrives).toBe(at('16:05'));
+    const [late] = buildDepartures(STOP, [scheduled(1, '15:55')], [vehicle(1, { delay: 180 })], now);
+    expect(late.arrives).toBe(at('16:08'));
+  });
+
   it('never predicts an early bus before its timetabled time', () => {
     const [d] = buildDepartures(STOP, [scheduled(1, '16:09')], [vehicle(1, { delay: -635 })], now);
     expect(d.expected).toBe(at('16:09'));

@@ -33,6 +33,8 @@ export interface StopVisit {
 
 export interface Departure {
   tripId: number;
+  /** ATCO code of the stop it leaves from (boards can cover several). */
+  stop: string;
   line: string;
   destination: string;
   scheduled: number;
@@ -43,11 +45,13 @@ export interface Departure {
   /** Stops still to go before this one; null if unknown. */
   stopsAway: number | null;
   vehicleName: string | null;
+  /** When it reaches the end of its route, including any delay. */
+  arrives: number | null;
 }
 
 export interface Board {
   departures: Departure[];
-  /** Every route that serves the stop, for the filter chips. */
+  /** Every route that serves the stops, for the filter chips. */
   lines: string[];
   fetchedAt: number;
   /** False when the timetable loaded but live positions didn't. */
@@ -113,12 +117,17 @@ export function buildDepartures(
       expected = now;
     }
 
+    const end = parseClock(trip.end);
+    const arrives =
+      end === null ? null : serviceTimeToEpoch(date, end) + Math.max(0, delay ?? 0) * 1000;
+
     const when = expected ?? scheduledAt;
     if (!live && when < now - SCHEDULED_GRACE_MS) continue;
     if (when > now + horizonMs) continue;
 
     departures.push({
       tripId: trip.id,
+      stop: atco,
       line: trip.service.line_name,
       destination: trip.headsign,
       scheduled: scheduledAt,
@@ -126,12 +135,15 @@ export function buildDepartures(
       delay,
       stopsAway,
       vehicleName: live?.vehicle?.name ?? null,
+      arrives,
     });
   }
 
-  return departures.sort(
-    (a, b) => (a.expected ?? a.scheduled) - (b.expected ?? b.scheduled) || a.scheduled - b.scheduled,
-  );
+  return departures.sort(byDepartureTime);
+}
+
+function byDepartureTime(a: Departure, b: Departure): number {
+  return (a.expected ?? a.scheduled) - (b.expected ?? b.scheduled) || a.scheduled - b.scheduled;
 }
 
 /** Sorts route names the way people expect: 2, 10, 302, 302A, X1. */
@@ -197,8 +209,10 @@ function activeServiceDates(now: number): string[] {
   return sinceMidnight < 4 * HOUR ? [addDays(today, -1), today] : [today];
 }
 
-export async function loadBoard(atco: string, now = Date.now()): Promise<Board> {
-  const services = await getServices(atco);
+/** Loads departures for one or more nearby stops as a single board. */
+export async function loadBoard(atcos: string[], now = Date.now()): Promise<Board> {
+  const perStop = await Promise.all(atcos.map((atco) => getServices(atco)));
+  const services = [...new Map(perStop.flat().map((s) => [s.id, s])).values()];
   const dates = activeServiceDates(now);
 
   const tripLists = await Promise.all(
@@ -218,11 +232,12 @@ export async function loadBoard(atco: string, now = Date.now()): Promise<Board> 
     );
   });
 
-  const visits = await mapLimit(candidates, TRIP_CONCURRENCY, ({ trip }) => getVisit(trip.id, atco));
-  const scheduled: ScheduledTrip[] = [];
-  candidates.forEach((c, i) => {
+  const lookups = atcos.flatMap((atco) => candidates.map((c) => ({ atco, c })));
+  const visits = await mapLimit(lookups, TRIP_CONCURRENCY, ({ atco, c }) => getVisit(c.trip.id, atco));
+  const scheduled = new Map<string, ScheduledTrip[]>(atcos.map((atco) => [atco, []]));
+  lookups.forEach(({ atco, c }, i) => {
     const visit = visits[i];
-    if (visit) scheduled.push({ ...c, visit });
+    if (visit) scheduled.get(atco)!.push({ ...c, visit });
   });
 
   let vehicles: Vehicle[] = [];
@@ -235,8 +250,12 @@ export async function loadBoard(atco: string, now = Date.now()): Promise<Board> 
     }
   }
 
+  const departures = atcos
+    .flatMap((atco) => buildDepartures(atco, scheduled.get(atco)!, vehicles, now))
+    .sort(byDepartureTime);
+
   return {
-    departures: buildDepartures(atco, scheduled, vehicles, now),
+    departures,
     lines: sortLines(services.map((s) => s.line_name)),
     fetchedAt: now,
     liveOk,

@@ -5,6 +5,7 @@ import { countdown, distanceMetres, distanceText, escapeHtml, parseStopInput, pu
 const now = Date.parse('2026-10-22T14:51:00Z');
 const dep = (overrides: Partial<Departure>): Departure => ({
   tripId: 1,
+  stop: '8400B6370801',
   line: '302',
   destination: 'City Centre',
   scheduled: now,
@@ -12,6 +13,7 @@ const dep = (overrides: Partial<Departure>): Departure => ({
   delay: null,
   stopsAway: null,
   vehicleName: null,
+  arrives: null,
   ...overrides,
 });
 

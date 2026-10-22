@@ -1,7 +1,7 @@
 import { fetchStop, fetchStopByNaptan, fetchStopsInBox, type NearbyStop } from './api';
 import { distanceMetres, distanceText, escapeHtml, parseStopInput } from './format';
 import { installSection, promptInstall } from './pwa';
-import { getFavourites, removeFavourite } from './store';
+import { getFavourites, getLastStop, getRouteFilter, removeFavourite } from './store';
 
 // About 900 m north/south and east/west at British and Irish latitudes.
 const BOX_LAT = 0.008;
@@ -20,10 +20,14 @@ let lookupError = '';
 let filterText = '';
 let active = false;
 
+function routesText(routes: string[]): string {
+  return routes.length ? `Showing ${escapeHtml(routes.join(', '))}` : 'All routes';
+}
+
 function renderSaved(): string {
   const favourites = getFavourites();
   if (favourites.length === 0) {
-    return '<p class="muted">No saved stops yet. Open a stop and tap the star to save it.</p>';
+    return '<p class="muted">No saved stops yet. Open a stop and tap <strong>Save</strong> to keep it here and as a tab on the board.</p>';
   }
   return `<ul class="stop-list">${favourites
     .map(
@@ -31,7 +35,7 @@ function renderSaved(): string {
       <li>
         <a class="stop-link" href="#/stop/${encodeURIComponent(f.atco)}">
           <span class="stop-link-name">${escapeHtml(f.name)}</span>
-          <span class="stop-link-meta">${f.routes.length ? `Showing ${escapeHtml(f.routes.join(', '))}` : 'All routes'}</span>
+          <span class="stop-link-meta">${routesText(getRouteFilter(f.atco))}</span>
         </a>
         <button class="icon-button" data-action="remove" data-atco="${escapeHtml(f.atco)}"
           aria-label="Remove ${escapeHtml(f.name)}">
@@ -86,8 +90,14 @@ function renderNearby(): string {
 }
 
 function render(): void {
+  // Installed apps have no browser back button, so offer one here.
+  const last = getLastStop();
   root.innerHTML = `
     <section class="stops">
+      <a class="back" href="${last ? `#/stop/${encodeURIComponent(last)}` : '#/'}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        Back to departures
+      </a>
       <h1>Stops</h1>
 
       <h2>Saved</h2>
