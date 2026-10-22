@@ -45,26 +45,35 @@ export function initPwa(onInstallAvailable: () => void): void {
   });
 }
 
+let showSteps = false;
+
+/** Shows the browser's install prompt, or the manual steps if there isn't one. */
 export async function promptInstall(): Promise<void> {
-  if (!deferredPrompt) return;
+  if (!deferredPrompt) {
+    showSteps = true;
+    return;
+  }
   const prompt = deferredPrompt;
   deferredPrompt = null;
   await prompt.prompt();
   await prompt.userChoice;
 }
 
+function installSteps(): string {
+  if (isIos()) {
+    return 'Tap the <strong>Share</strong> button, then <strong>Add to Home Screen</strong>. If it isn\'t there, open this page in Safari first.';
+  }
+  return `<ol>
+      <li>If you opened this from another app, tap <strong>⋮</strong> and choose <strong>Open in Chrome</strong>.</li>
+      <li>In Chrome, tap <strong>⋮</strong>, then <strong>Add to Home screen</strong> or <strong>Install app</strong>.</li>
+    </ol>`;
+}
+
 export function installSection(): string {
   if (isStandalone()) return '';
-  if (deferredPrompt) {
-    return `
-      <h2>Install</h2>
-      <p class="muted">Add Next Bus to your home screen so it opens like an app, even with no signal.</p>
-      <button class="button primary" data-action="install">Install app</button>`;
-  }
-  if (isIos()) {
-    return `
-      <h2>Install</h2>
-      <p class="muted">In Safari, tap the <strong>Share</strong> button, then <strong>Add to Home Screen</strong>.</p>`;
-  }
-  return '';
+  return `
+    <h2>Install</h2>
+    <p class="muted">Add Next Bus to your home screen so it opens like an app, even with no signal.</p>
+    <button class="button primary" data-action="install">Add to home screen</button>
+    ${showSteps ? `<div class="install-steps" role="status">${installSteps()}</div>` : ''}`;
 }
