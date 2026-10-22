@@ -341,7 +341,10 @@ function onClick(event: MouseEvent): void {
       void refresh(true);
       break;
     case 'favourite': {
-      if (getFavourite(atco)) {
+      const saved = getFavourite(atco);
+      if (saved) {
+        // One tap on "Saved" shouldn't silently drop a stop from the dropdown.
+        if (!window.confirm(`Remove ${saved.name} from your stops?`)) break;
         removeFavourite(atco);
         announce('Removed from saved stops');
       } else {

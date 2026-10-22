@@ -91,13 +91,18 @@ describe('migrateFavourites', () => {
     expect(getFavourites()).toEqual(DEFAULT_FAVOURITES);
   });
 
-  it('does not bring back Colbert Station if it was removed', () => {
+  it('brings back Colbert Station if it went missing', () => {
     useStorage({
-      defaultsVersion: '2',
-      favourites: JSON.stringify([{ atco: '8400B6370801,8400B6069401', name: 'TUS Moylish' }]),
+      defaultsVersion: '4',
+      favourites: JSON.stringify([
+        { atco: LIMERICK_IT, name: 'Limerick IT' },
+        { atco: CITY, name: "City (Harvey's Quay)" },
+        { atco: MAYORSTONE, name: 'Mayorstone Upper' },
+        { atco: 'X', name: 'Elsewhere' },
+      ]),
     });
     migrateFavourites();
-    expect(atcos()).toEqual([LIMERICK_IT, CITY, MAYORSTONE]);
+    expect(atcos()).toEqual([...DEFAULTS, 'X']);
   });
 
   it('runs only once', () => {
