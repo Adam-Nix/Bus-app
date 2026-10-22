@@ -46,7 +46,7 @@ npm run build    # type-check and production build into dist/
 
 1. In the repository on GitHub, go to **Settings → Pages** and set **Source**
    to **GitHub Actions**.
-2. Merge to `main` (or run the **Deploy to GitHub Pages** workflow by hand).
+2. Merge to `master` (or run the **Deploy to GitHub Pages** workflow by hand).
    The workflow tests, builds and publishes the site.
 3. Open `https://<your-username>.github.io/<repo-name>/` on the phone.
 
