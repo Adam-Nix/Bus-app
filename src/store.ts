@@ -74,7 +74,7 @@ const DEFAULT_ROUTES: Record<string, string[]> = {
 // Boards earlier versions saved by default that are no longer used.
 const RETIRED_DEFAULTS = new Set(['8400B6370801', '8400B6370801,8400B6069401']);
 
-const CURRENT_DEFAULTS_VERSION = 4;
+const CURRENT_DEFAULTS_VERSION = 5;
 
 const FAVOURITES_KEY = 'favourites';
 const DEFAULTS_VERSION_KEY = 'defaultsVersion';
@@ -111,23 +111,29 @@ export function removeFavourite(atco: string): void {
 
 /**
  * One-off upgrade for people who saved stops on an older version: the
- * built-in stops are replaced with the current ones, and any stops they
- * saved themselves are kept after them.
+ * built-in stops are replaced with the current ones, any stops they saved
+ * themselves are kept, and every built-in stop is put back if missing.
  */
 export function migrateFavourites(): void {
   const version = Number(read(DEFAULTS_VERSION_KEY) ?? 1);
   if (version >= CURRENT_DEFAULTS_VERSION) return;
   const stored = readStoredFavourites();
   if (stored) {
-    const defaults = DEFAULT_FAVOURITES.map(({ atco, name }) => ({ atco, name }));
-    const kept = stored
-      .filter((f) => !RETIRED_DEFAULTS.has(f.atco) && !defaults.some((d) => d.atco === f.atco))
-      .map(({ atco, name }) => ({ atco, name }));
-    // Colbert Station only became a default in version 2; if it's missing
-    // after that, they removed it on purpose.
-    const colbert = defaults.pop()!;
-    if (version < 2 || stored.some((f) => f.atco === colbert.atco)) kept.unshift(colbert);
-    setFavourites([...defaults, ...kept]);
+    let favourites = stored.map(({ atco, name }) => ({ atco, name }));
+    if (version < 4) {
+      // The built-in stops changed; drop the old ones and re-add below.
+      favourites = favourites.filter(
+        (f) => !RETIRED_DEFAULTS.has(f.atco) && !DEFAULT_FAVOURITES.some((d) => d.atco === f.atco),
+      );
+    }
+    // Version 4 could leave Colbert Station out, and it's easy to remove a
+    // stop by accident, so restore any missing built-in stop in its place.
+    DEFAULT_FAVOURITES.forEach((d, i) => {
+      if (!favourites.some((f) => f.atco === d.atco)) {
+        favourites.splice(Math.min(i, favourites.length), 0, { atco: d.atco, name: d.name });
+      }
+    });
+    setFavourites(favourites);
   }
   write(DEFAULTS_VERSION_KEY, String(CURRENT_DEFAULTS_VERSION));
 }
