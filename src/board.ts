@@ -72,7 +72,8 @@ function stopSubtitle(s: State): string {
   }
   const stop = s.stops[s.atco];
   if (!stop) return '';
-  const parts = [stop.long_name !== stopTitle(s) ? stop.long_name : null];
+  // Skip the full name when the title already says it.
+  const parts = [stopTitle(s).startsWith(stop.long_name) ? null : stop.long_name];
   if (stop.indicator && !stop.long_name.includes(stop.indicator)) parts.push(stop.indicator);
   return parts.filter(Boolean).join(' · ');
 }
@@ -169,8 +170,19 @@ function renderStatus(s: State, now: number): string {
   return bits.join('<span class="sep" aria-hidden="true">·</span>');
 }
 
+function pickerOpen(): boolean {
+  return root.contains(document.activeElement) && document.activeElement instanceof HTMLSelectElement;
+}
+
+// Wait for focus to settle so a closing picker no longer counts as open.
+function renderSoon(): void {
+  setTimeout(render);
+}
+
 function render(): void {
   if (!state) return;
+  // Redrawing would close the phone's picker mid-choice; catch up on blur.
+  if (pickerOpen()) return;
   const s = state;
   const now = Date.now();
   const favourite = getFavourite(s.atco);
@@ -209,18 +221,23 @@ function render(): void {
         </div>`
       : '';
 
-  // Quick switching between saved stops, once there's somewhere to switch to.
-  const saved = getFavourites();
-  const tabs = saved.some((f) => f.atco !== s.atco)
-    ? `<nav class="saved-tabs" aria-label="Saved stops">${saved
-        .map(
-          (f) =>
-            `<a class="saved-tab" href="#/stop/${encodeURIComponent(f.atco)}"${
-              f.atco === s.atco ? ' aria-current="page"' : ''
-            }>${escapeHtml(f.name)}</a>`,
-        )
-        .join('')}</nav>`
-    : '';
+  // The stop name doubles as a dropdown for switching between saved stops.
+  // A native select gives the phone's own picker and works with screen readers.
+  const options = [...getFavourites()];
+  if (!favourite) options.unshift({ atco: s.atco, name: stopTitle(s) });
+  const picker = `
+    <label class="picker">
+      <span class="visually-hidden">Stop</span>
+      <select data-action="switch">
+        ${options
+          .map(
+            (f) =>
+              `<option value="${escapeHtml(f.atco)}"${f.atco === s.atco ? ' selected' : ''}>${escapeHtml(f.name)}</option>`,
+          )
+          .join('')}
+      </select>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+    </label>`;
 
   // Re-rendering replaces the buttons, so put keyboard focus back after.
   const focused = root.contains(document.activeElement)
@@ -229,10 +246,10 @@ function render(): void {
 
   root.innerHTML = `
     <section class="board">
-      ${tabs}
+      <h1 class="visually-hidden">${escapeHtml(stopTitle(s))}</h1>
       <div class="stop-head">
         <div class="stop-names">
-          <h1>${escapeHtml(stopTitle(s))}</h1>
+          ${picker}
           <p class="stop-sub">${escapeHtml(stopSubtitle(s))}</p>
         </div>
         <button class="save" data-action="favourite" aria-pressed="${Boolean(favourite)}"
@@ -335,6 +352,12 @@ function onClick(event: MouseEvent): void {
   }
 }
 
+function onChange(event: Event): void {
+  const select = event.target as HTMLSelectElement;
+  if (select.dataset.action !== 'switch' || !state || select.value === state.atco) return;
+  location.hash = `#/stop/${encodeURIComponent(select.value)}`;
+}
+
 function onVisibility(): void {
   if (document.visibilityState === 'visible') tick();
 }
@@ -369,6 +392,8 @@ export function showBoard(container: HTMLElement, atco: string): () => void {
   });
 
   root.addEventListener('click', onClick);
+  root.addEventListener('change', onChange);
+  root.addEventListener('focusout', renderSoon);
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('online', onOnline);
   timer = window.setInterval(tick, TICK_MS);
@@ -377,6 +402,8 @@ export function showBoard(container: HTMLElement, atco: string): () => void {
     state = null;
     window.clearInterval(timer);
     root.removeEventListener('click', onClick);
+    root.removeEventListener('change', onChange);
+    root.removeEventListener('focusout', renderSoon);
     document.removeEventListener('visibilitychange', onVisibility);
     window.removeEventListener('online', onOnline);
   };

@@ -48,21 +48,34 @@ export interface SavedStop {
 }
 
 const TUS_MOYLISH_STOP = '8400B6370801';
-// The 302 is a loop: after TUS it goes round Caherdavin and comes back past
-// this stop on its way into town, so it's the same bus, later.
-const MAYORSTONE_UPPER_CITY_BOUND = '8400B6069401';
-const TUS_MOYLISH = `${TUS_MOYLISH_STOP},${MAYORSTONE_UPPER_CITY_BOUND}`;
+// The 302 is a loop. It passes this stop a minute before TUS...
+const MAYORSTONE_UPPER_TO_TUS = '8400B6068701';
+// ...then goes round Caherdavin and passes this one on its way into town,
+// so it's the same bus, later.
+const MAYORSTONE_UPPER_TO_TOWN = '8400B6069401';
+const TUS_MOYLISH = `${TUS_MOYLISH_STOP},${MAYORSTONE_UPPER_TO_TOWN}`;
 const COLBERT_STATION_DEPARTURES = '8400B635041';
 
+const MAYORSTONE_STOPS: readonly SavedStop[] = [
+  { atco: MAYORSTONE_UPPER_TO_TOWN, name: 'Mayorstone Upper (to town)' },
+  { atco: MAYORSTONE_UPPER_TO_TUS, name: 'Mayorstone Upper (to TUS)' },
+];
+
+/** In dropdown order; the first is where the app opens. */
 export const DEFAULT_FAVOURITES: readonly SavedStop[] = [
   { atco: TUS_MOYLISH, name: 'TUS Moylish' },
+  ...MAYORSTONE_STOPS,
   { atco: COLBERT_STATION_DEPARTURES, name: 'Colbert Station' },
 ];
 
 const DEFAULT_ROUTES: Record<string, string[]> = {
   [TUS_MOYLISH]: ['302'],
+  [MAYORSTONE_UPPER_TO_TOWN]: ['302'],
+  [MAYORSTONE_UPPER_TO_TUS]: ['302'],
   [COLBERT_STATION_DEPARTURES]: ['55'],
 };
+
+const CURRENT_DEFAULTS_VERSION = 3;
 
 const FAVOURITES_KEY = 'favourites';
 const DEFAULTS_VERSION_KEY = 'defaultsVersion';
@@ -107,25 +120,34 @@ export function removeFavourite(atco: string): void {
  */
 export function migrateFavourites(): void {
   const version = Number(read(DEFAULTS_VERSION_KEY) ?? 1);
-  if (version >= 2) return;
+  if (version >= CURRENT_DEFAULTS_VERSION) return;
   const stored = readStoredFavourites();
   if (stored) {
-    // TUS Moylish became a combined board with Mayorstone Upper.
-    const upgraded = stored.map((f) => (f.atco === TUS_MOYLISH_STOP ? { ...f, atco: TUS_MOYLISH } : f));
-    for (const f of upgraded) {
-      if (f.routes && read(ROUTES_PREFIX + f.atco) === null) setRouteFilter(f.atco, f.routes);
+    let favourites = stored;
+    if (version < 2) {
+      // TUS Moylish became a combined board with Mayorstone Upper, and
+      // Colbert Station was added.
+      favourites = favourites.map((f) => (f.atco === TUS_MOYLISH_STOP ? { ...f, atco: TUS_MOYLISH } : f));
+      for (const f of favourites) {
+        if (f.routes && read(ROUTES_PREFIX + f.atco) === null) setRouteFilter(f.atco, f.routes);
+      }
+      if (!favourites.some((f) => f.atco === COLBERT_STATION_DEPARTURES)) {
+        favourites.push({ atco: COLBERT_STATION_DEPARTURES, name: 'Colbert Station' });
+      }
     }
-    const favourites = upgraded.map(({ atco, name }) => ({ atco, name }));
-    if (!favourites.some((f) => f.atco === COLBERT_STATION_DEPARTURES)) {
-      favourites.push({ ...DEFAULT_FAVOURITES[1] });
+    if (version < 3) {
+      // Both Mayorstone Upper stops were added, right after TUS Moylish.
+      const missing = MAYORSTONE_STOPS.filter((m) => !favourites.some((f) => f.atco === m.atco));
+      const tus = favourites.findIndex((f) => f.atco === TUS_MOYLISH);
+      favourites.splice(tus + 1, 0, ...missing);
     }
-    setFavourites(favourites);
+    setFavourites(favourites.map(({ atco, name }) => ({ atco, name })));
   }
   if (getLastStop() === TUS_MOYLISH_STOP) setLastStop(TUS_MOYLISH);
-  write(DEFAULTS_VERSION_KEY, '2');
+  write(DEFAULTS_VERSION_KEY, String(CURRENT_DEFAULTS_VERSION));
 }
 
-/** The stop the app reopens on. */
+/** The last stop viewed, for the Stops page's back link. */
 export function getLastStop(): string | null {
   return read(LAST_STOP_KEY);
 }

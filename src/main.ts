@@ -2,7 +2,7 @@ import './style.css';
 import { showBoard } from './board';
 import { initPwa } from './pwa';
 import { showStops } from './stops';
-import { getFavourites, getLastStop, migrateFavourites, pruneCache } from './store';
+import { getFavourites, migrateFavourites, pruneCache } from './store';
 
 migrateFavourites();
 
@@ -19,10 +19,8 @@ function route(): void {
   if (stopMatch) next = `stop:${decodeURIComponent(stopMatch[1])}`;
   else if (hash === '/stops') next = 'stops';
   else {
-    // Reopen the saved stop they looked at last, like most transit apps.
-    const saved = getFavourites();
-    const last = getLastStop();
-    const home = saved.find((f) => f.atco === last) ?? saved[0];
+    // Always open on the first saved stop; the dropdown switches from there.
+    const [home] = getFavourites();
     location.replace(home ? `#/stop/${encodeURIComponent(home.atco)}` : '#/stops');
     return;
   }
