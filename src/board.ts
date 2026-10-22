@@ -14,13 +14,15 @@ import {
   setLastStop,
 } from './store';
 import { formatClock } from './time';
+import { loadWeather, type Weather } from './weather';
+import { weatherIcon } from './weather-icons';
 
 const REFRESH_MS = 30_000;
 const TICK_MS = 10_000;
 /** A saved board older than this is too old to show while loading. */
 const SNAPSHOT_MAX_AGE_MS = 6 * 60 * 60_000;
 
-type StopInfo = Pick<Stop, 'common_name' | 'long_name' | 'indicator'>;
+type StopInfo = Pick<Stop, 'common_name' | 'long_name' | 'indicator' | 'location'>;
 
 interface State {
   /** Board key: one ATCO code, or several joined by commas. */
@@ -30,6 +32,7 @@ interface State {
   /** Routes shown; starts at the stop's default each time it's opened. */
   routes: string[];
   board: Board | null;
+  weather: Weather | null;
   loading: boolean;
   error: string | null;
 }
@@ -45,10 +48,16 @@ function snapshotKey(atco: string) {
 async function getStopInfo(atco: string): Promise<StopInfo | null> {
   const key = `stop:${atco}`;
   const cached = cacheGet<StopInfo>(key) ?? null;
-  if (cached) return cached;
+  // Older versions cached stops without a location, which weather needs.
+  if (cached?.location) return cached;
   const stop = await fetchStop(atco);
   if (!stop) return null;
-  const info = { common_name: stop.common_name, long_name: stop.long_name, indicator: stop.indicator };
+  const info = {
+    common_name: stop.common_name,
+    long_name: stop.long_name,
+    indicator: stop.indicator,
+    location: stop.location,
+  };
   cacheSet(key, info, 7 * 24 * 60 * 60_000);
   return info;
 }
@@ -174,6 +183,17 @@ function renderStatus(s: State, now: number): string {
   return bits.join('<span class="sep" aria-hidden="true">·</span>');
 }
 
+function renderWeather(w: Weather): string {
+  const rain = w.rainChance === null ? '' : `<span class="bit"><strong>${w.rainChance}%</strong> chance of rain</span>`;
+  return `
+    <p class="weather">
+      ${weatherIcon(w.kind, w.isDay)}
+      <span class="weather-text">
+        <span class="bit"><strong>${Math.round(w.temperature)}°</strong> ${escapeHtml(w.label)}</span>${rain}
+      </span>
+    </p>`;
+}
+
 // The header (with the stop dropdown) is only redrawn when it changes, so
 // the regular countdown updates never disturb the phone's picker.
 let lastHead = '';
@@ -258,10 +278,12 @@ function renderBody(s: State, now: number): string {
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg>
       </button>
     </div>
+    ${s.weather ? renderWeather(s.weather) : ''}
     ${departures}
     <p class="credit">
       Times from <a href="${stopPageUrl(s.atcos[0])}" target="_blank" rel="noopener">bustimes.org</a>,
       using public transport open data.
+      Weather by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.
     </p>`;
 }
 
@@ -317,6 +339,7 @@ async function refresh(manual = false): Promise<void> {
     });
     s.error = null;
     cacheSet(snapshotKey(s.atco), board, SNAPSHOT_MAX_AGE_MS);
+    void refreshWeather(s);
     if (manual) announce('Departures updated');
   } catch (err) {
     if (state !== s) return;
@@ -328,6 +351,20 @@ async function refresh(manual = false): Promise<void> {
       s.loading = false;
       render();
     }
+  }
+}
+
+/** Weather is a nice extra: if it fails, the board simply goes without. */
+async function refreshWeather(s: State): Promise<void> {
+  const location = s.stops[s.atcos[0]]?.location;
+  if (!location) return;
+  try {
+    const weather = await loadWeather(location);
+    if (state !== s) return;
+    s.weather = weather;
+    render();
+  } catch {
+    // Leave out the weather line.
   }
 }
 
@@ -403,6 +440,7 @@ export function showBoard(container: HTMLElement, atco: string): () => void {
       }),
     ),
     board: fresh,
+    weather: null,
     loading: false,
     error: null,
   };

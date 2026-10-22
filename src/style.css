@@ -343,6 +343,65 @@ h2 {
   }
 }
 
+.weather {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.weather strong {
+  color: var(--text);
+}
+
+.weather-text {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.weather-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.wx-sun {
+  color: #e0a800;
+}
+
+.wx-moon {
+  color: #8fa3c7;
+}
+
+.wx-cloud {
+  color: var(--muted);
+}
+
+.wx-rain,
+.wx-snow {
+  color: #2f80d1;
+}
+
+.wx-snow {
+  stroke-width: 3;
+}
+
+.wx-bolt {
+  color: #e0a800;
+}
+
+@media (prefers-color-scheme: dark) {
+  .wx-rain,
+  .wx-snow {
+    color: #6cb4ff;
+  }
+}
+
 .route-badge {
   display: inline-grid;
   place-items: center;
