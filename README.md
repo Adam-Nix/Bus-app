@@ -2,20 +2,14 @@
 
 A small, installable web app (PWA) that shows live bus departures for your
 stop, using the same data as [bustimes.org](https://bustimes.org). The stop
-name at the top is a dropdown of saved stops, which come set up as:
+name at the top is a dropdown of saved stops, which come set up for the 302:
 
-- **TUS Moylish** (where the app opens): 302 into town from TUS Moylish and
-  Mayorstone Upper combined
-- **Mayorstone Upper (to town)** and **Mayorstone Upper (to TUS)**: 302
-- **Colbert Station**: 55 to Waterford
+- **Limerick IT** (where the app opens): buses into the city
+- **City (Harvey's Quay)**: buses from the city
+- **Mayorstone Upper**: buses arriving from the city
+- **Colbert Station**: the 55 to Waterford
 
 You can save any other stop in Great Britain or Ireland.
-
-The TUS Moylish board combines two stops. The 302 runs in a loop: after TUS
-it goes round Caherdavin and comes back past Mayorstone Upper on its way into
-town. So the board lists buses from both stops, labels which stop each one
-leaves from, and shows when it arrives in town, so you can see the same bus
-later at Mayorstone Upper.
 
 - **Stops** (top right) finds stops near you or by code; **Back to
   departures** returns to the board.
