@@ -6,9 +6,11 @@ import {
   cacheGetStale,
   cacheSet,
   getFavourite,
+  getFavourites,
   getRouteFilter,
   removeFavourite,
   saveFavourite,
+  setLastStop,
   setRouteFilter,
 } from './store';
 import { formatClock } from './time';
@@ -18,9 +20,13 @@ const TICK_MS = 10_000;
 /** A saved board older than this is too old to show while loading. */
 const SNAPSHOT_MAX_AGE_MS = 6 * 60 * 60_000;
 
+type StopInfo = Pick<Stop, 'common_name' | 'long_name' | 'indicator'>;
+
 interface State {
+  /** Board key: one ATCO code, or several joined by commas. */
   atco: string;
-  stop: Pick<Stop, 'common_name' | 'long_name' | 'indicator'> | null;
+  atcos: string[];
+  stops: Record<string, StopInfo>;
   board: Board | null;
   loading: boolean;
   error: string | null;
@@ -34,9 +40,9 @@ function snapshotKey(atco: string) {
   return `board:${atco}`;
 }
 
-async function getStopInfo(atco: string): Promise<State['stop']> {
+async function getStopInfo(atco: string): Promise<StopInfo | null> {
   const key = `stop:${atco}`;
-  const cached = cacheGet<State['stop']>(key) ?? null;
+  const cached = cacheGet<StopInfo>(key) ?? null;
   if (cached) return cached;
   const stop = await fetchStop(atco);
   if (!stop) return null;
@@ -45,15 +51,38 @@ async function getStopInfo(atco: string): Promise<State['stop']> {
   return info;
 }
 
+function isCombined(s: State): boolean {
+  return s.atcos.length > 1;
+}
+
+function stopName(s: State, atco: string): string {
+  return s.stops[atco]?.common_name ?? 'Bus stop';
+}
+
 function stopTitle(s: State): string {
-  return getFavourite(s.atco)?.name ?? s.stop?.common_name ?? 'Bus stop';
+  return (
+    getFavourite(s.atco)?.name ??
+    (isCombined(s) ? s.atcos.map((a) => stopName(s, a)).join(' + ') : stopName(s, s.atco))
+  );
 }
 
 function stopSubtitle(s: State): string {
-  if (!s.stop) return '';
-  const parts = [s.stop.long_name !== stopTitle(s) ? s.stop.long_name : null];
-  if (s.stop.indicator && !s.stop.long_name.includes(s.stop.indicator)) parts.push(s.stop.indicator);
+  if (isCombined(s)) {
+    return Object.keys(s.stops).length ? `Buses from ${s.atcos.map((a) => stopName(s, a)).join(' and ')}` : '';
+  }
+  const stop = s.stops[s.atco];
+  if (!stop) return '';
+  const parts = [stop.long_name !== stopTitle(s) ? stop.long_name : null];
+  if (stop.indicator && !stop.long_name.includes(stop.indicator)) parts.push(stop.indicator);
   return parts.filter(Boolean).join(' · ');
+}
+
+/** On a combined board, which stop the bus leaves from. */
+function fromLine(d: Departure, s: State, withArrival: boolean): string {
+  if (!isCombined(s)) return '';
+  const arrival =
+    withArrival && d.arrives !== null ? `<span class="bit">arrives ${formatClock(d.arrives)}</span>` : '';
+  return `<div class="from"><span class="bit">From ${escapeHtml(stopName(s, d.stop))}</span>${arrival}</div>`;
 }
 
 function metaLine(d: Departure): string {
@@ -67,16 +96,21 @@ function metaLine(d: Departure): string {
   } else {
     bits.push('<span class="scheduled">Timetable</span>');
   }
-  return bits.join('<span class="sep" aria-hidden="true">·</span>');
+  return bits.map((b) => `<span class="bit">${b}</span>`).join('');
 }
 
-function timesLine(d: Departure): string {
+function timesLine(d: Departure, s: State): string {
   const sched = formatClock(d.scheduled);
-  if (d.expected === null || formatClock(d.expected) === sched) return `Due ${sched}`;
-  return `Due ${sched} · <strong>Expected ${formatClock(d.expected)}</strong>`;
+  const parts = [`Due ${sched}`];
+  if (d.expected !== null && formatClock(d.expected) !== sched) {
+    parts.push(`<strong>Expected ${formatClock(d.expected)}</strong>`);
+  }
+  // Comparing stops only makes sense with when each bus gets you there.
+  if (isCombined(s) && d.arrives !== null) parts.push(`Arrives ${formatClock(d.arrives)}`);
+  return parts.join(' · ');
 }
 
-function renderHero(d: Departure, now: number): string {
+function renderHero(d: Departure, s: State, now: number): string {
   const c = countdown(d, now);
   return `
     <article class="hero" aria-label="Next bus: ${escapeHtml(d.line)} to ${escapeHtml(d.destination)}, ${escapeHtml(c.label)}">
@@ -88,12 +122,13 @@ function renderHero(d: Departure, now: number): string {
         <span class="hero-value">${escapeHtml(c.value)}</span>
         ${c.unit ? `<span class="hero-unit">${c.unit}</span>` : ''}
       </div>
+      ${fromLine(d, s, false)}
       <div class="hero-meta">${metaLine(d)}</div>
-      <div class="hero-times">${timesLine(d)}</div>
+      <div class="hero-times">${timesLine(d, s)}</div>
     </article>`;
 }
 
-function renderRow(d: Departure, now: number): string {
+function renderRow(d: Departure, s: State, now: number): string {
   const c = countdown(d, now);
   const clock = formatClock(departureTime(d));
   return `
@@ -101,6 +136,7 @@ function renderRow(d: Departure, now: number): string {
       <span class="route-badge small">${escapeHtml(d.line)}</span>
       <div class="row-main">
         <div class="row-dest">${escapeHtml(d.destination)}</div>
+        ${fromLine(d, s, true)}
         <div class="row-meta">${metaLine(d)}</div>
       </div>
       <div class="row-when" aria-hidden="true">
@@ -155,8 +191,8 @@ function render(): void {
     body = `<div class="empty"><p>No ${escapeHtml(which)}buses in the next 3 hours.</p></div>`;
   } else {
     const [next, ...rest] = visible;
-    body = `${renderHero(next, now)}${
-      rest.length ? `<h2 class="list-title">Later</h2><ol class="list">${rest.map((d) => renderRow(d, now)).join('')}</ol>` : ''
+    body = `${renderHero(next, s, now)}${
+      rest.length ? `<h2 class="list-title">Later</h2><ol class="list">${rest.map((d) => renderRow(d, s, now)).join('')}</ol>` : ''
     }`;
   }
 
@@ -173,6 +209,19 @@ function render(): void {
         </div>`
       : '';
 
+  // Quick switching between saved stops, once there's somewhere to switch to.
+  const saved = getFavourites();
+  const tabs = saved.some((f) => f.atco !== s.atco)
+    ? `<nav class="saved-tabs" aria-label="Saved stops">${saved
+        .map(
+          (f) =>
+            `<a class="saved-tab" href="#/stop/${encodeURIComponent(f.atco)}"${
+              f.atco === s.atco ? ' aria-current="page"' : ''
+            }>${escapeHtml(f.name)}</a>`,
+        )
+        .join('')}</nav>`
+    : '';
+
   // Re-rendering replaces the buttons, so put keyboard focus back after.
   const focused = root.contains(document.activeElement)
     ? (document.activeElement as HTMLElement).dataset
@@ -180,14 +229,16 @@ function render(): void {
 
   root.innerHTML = `
     <section class="board">
+      ${tabs}
       <div class="stop-head">
         <div class="stop-names">
           <h1>${escapeHtml(stopTitle(s))}</h1>
           <p class="stop-sub">${escapeHtml(stopSubtitle(s))}</p>
         </div>
-        <button class="star" data-action="favourite" aria-pressed="${Boolean(favourite)}"
-          aria-label="${favourite ? 'Remove from saved stops' : 'Save this stop'}">
+        <button class="save" data-action="favourite" aria-pressed="${Boolean(favourite)}"
+          aria-label="Save stop" title="Saved stops appear as tabs and on the Stops page">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
+          <span aria-hidden="true">${favourite ? 'Saved' : 'Save'}</span>
         </button>
       </div>
       ${chips}
@@ -199,7 +250,7 @@ function render(): void {
       </div>
       ${body}
       <p class="credit">
-        Times from <a href="${stopPageUrl(s.atco)}" target="_blank" rel="noopener">bustimes.org</a>,
+        Times from <a href="${stopPageUrl(s.atcos[0])}" target="_blank" rel="noopener">bustimes.org</a>,
         using public transport open data.
       </p>
     </section>`;
@@ -223,10 +274,14 @@ async function refresh(manual = false): Promise<void> {
   s.loading = true;
   render();
   try {
-    const [board, stop] = await Promise.all([loadBoard(s.atco), s.stop ? s.stop : getStopInfo(s.atco)]);
+    const missing = s.atcos.filter((a) => !s.stops[a]);
+    const [board, infos] = await Promise.all([loadBoard(s.atcos), Promise.all(missing.map(getStopInfo))]);
     if (state !== s) return; // Navigated away while loading.
     s.board = board;
-    s.stop = stop;
+    missing.forEach((a, i) => {
+      const info = infos[i];
+      if (info) s.stops[a] = info;
+    });
     s.error = null;
     cacheSet(snapshotKey(s.atco), board, SNAPSHOT_MAX_AGE_MS);
     if (manual) announce('Departures updated');
@@ -263,8 +318,8 @@ function onClick(event: MouseEvent): void {
         removeFavourite(atco);
         announce('Removed from saved stops');
       } else {
-        saveFavourite({ atco, name: stopTitle(state), routes: getRouteFilter(atco) });
-        announce('Saved');
+        saveFavourite({ atco, name: stopTitle(state) });
+        announce('Saved. It now appears in your saved stops.');
       }
       render();
       break;
@@ -290,11 +345,19 @@ function onOnline(): void {
 
 export function showBoard(container: HTMLElement, atco: string): () => void {
   root = container;
+  const atcos = atco.split(',').filter(Boolean);
+  setLastStop(atco);
   const snapshot = cacheGetStale<Board>(snapshotKey(atco));
   const fresh = snapshot && Date.now() - snapshot.fetchedAt < SNAPSHOT_MAX_AGE_MS ? snapshot : null;
   state = {
     atco,
-    stop: cacheGetStale<State['stop']>(`stop:${atco}`) ?? null,
+    atcos,
+    stops: Object.fromEntries(
+      atcos.flatMap((a) => {
+        const info = cacheGetStale<StopInfo>(`stop:${a}`);
+        return info ? [[a, info]] : [];
+      }),
+    ),
     board: fresh,
     loading: false,
     error: null,

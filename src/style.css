@@ -212,39 +212,80 @@ h2 {
   display: none;
 }
 
-.star {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
+.save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  min-height: 44px;
+  padding: 0 14px 0 12px;
   border: 1px solid var(--border);
-  border-radius: 50%;
+  border-radius: 999px;
   background: var(--surface);
-  color: var(--muted);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
   cursor: pointer;
 }
 
-.star svg {
-  width: 22px;
-  height: 22px;
+.save svg {
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
 }
 
-.star[aria-pressed='true'] {
+.save[aria-pressed='true'] svg {
   color: #e0a800;
-}
-
-.star[aria-pressed='true'] svg {
   fill: currentColor;
 }
 
+/* Saved stops and route chips scroll sideways rather than wrapping. */
+.saved-tabs,
 .chips {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 -16px;
+  padding: 0 16px;
+}
+
+.saved-tabs::-webkit-scrollbar,
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.saved-tabs {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.saved-tab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.saved-tab[aria-current='page'] {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.chips {
   margin-top: 16px;
 }
 
 .chip {
+  flex: none;
   min-height: 40px;
   min-width: 52px;
   padding: 0 16px;
@@ -405,6 +446,32 @@ h2 {
   }
 }
 
+.from {
+  display: flex;
+  flex-wrap: wrap;
+  font-weight: 700;
+}
+
+.bit {
+  white-space: nowrap;
+}
+
+.hero .from {
+  margin-top: 10px;
+}
+
+.row .from {
+  font-size: 0.85rem;
+}
+
+/* Separators trail each item so a wrapped line never starts with one. */
+.bit:not(:last-child)::after {
+  content: '·';
+  margin: 0 6px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
 .punct.late {
   color: var(--late);
 }
@@ -524,6 +591,19 @@ h2 {
 }
 
 /* --- Stops page --------------------------------------------------------- */
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  margin: -6px 0 6px -8px;
+  padding: 0 12px 0 4px;
+  border-radius: 999px;
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
 
 .stop-list {
   margin: 0;

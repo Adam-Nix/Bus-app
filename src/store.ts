@@ -42,20 +42,42 @@ function readJson<T>(key: string): T | null {
 // --- Saved stops ---------------------------------------------------------
 
 export interface SavedStop {
+  /** ATCO code, or several joined by commas for a combined board. */
   atco: string;
   name: string;
-  /** Route numbers to show; empty means every route. */
-  routes: string[];
 }
 
-const FAVOURITES_KEY = 'favourites';
+const TUS_MOYLISH_STOP = '8400B6370801';
+// The 302 is a loop: after TUS it goes round Caherdavin and comes back past
+// this stop on its way into town, so it's the same bus, later.
+const MAYORSTONE_UPPER_CITY_BOUND = '8400B6069401';
+const TUS_MOYLISH = `${TUS_MOYLISH_STOP},${MAYORSTONE_UPPER_CITY_BOUND}`;
+const COLBERT_STATION_DEPARTURES = '8400B635041';
 
-export const DEFAULT_FAVOURITES: SavedStop[] = [
-  { atco: '8400B6370801', name: 'TUS Moylish', routes: ['302'] },
+export const DEFAULT_FAVOURITES: readonly SavedStop[] = [
+  { atco: TUS_MOYLISH, name: 'TUS Moylish' },
+  { atco: COLBERT_STATION_DEPARTURES, name: 'Colbert Station' },
 ];
 
+const DEFAULT_ROUTES: Record<string, string[]> = {
+  [TUS_MOYLISH]: ['302'],
+  [COLBERT_STATION_DEPARTURES]: ['55'],
+};
+
+const FAVOURITES_KEY = 'favourites';
+const DEFAULTS_VERSION_KEY = 'defaultsVersion';
+const LAST_STOP_KEY = 'lastStop';
+
+/** Saved stops as stored; version 1 also kept the route filter here. */
+type StoredStop = SavedStop & { routes?: string[] };
+
+function readStoredFavourites(): StoredStop[] | null {
+  return readJson<StoredStop[]>(FAVOURITES_KEY);
+}
+
 export function getFavourites(): SavedStop[] {
-  return readJson<SavedStop[]>(FAVOURITES_KEY) ?? DEFAULT_FAVOURITES;
+  const stored = readStoredFavourites();
+  return (stored ?? DEFAULT_FAVOURITES).map(({ atco, name }) => ({ atco, name }));
 }
 
 function setFavourites(favourites: SavedStop[]): void {
@@ -78,18 +100,53 @@ export function removeFavourite(atco: string): void {
   setFavourites(getFavourites().filter((f) => f.atco !== atco));
 }
 
-// Route filters for stops that aren't saved, so toggling a chip on a stop
-// you're just browsing still sticks for the session.
-const browsingRoutes = new Map<string, string[]>();
+/**
+ * One-off upgrades for people who saved stops on an older version: moves
+ * route filters out of the saved-stop list and adds stops that became
+ * defaults later, without bringing back ones they removed.
+ */
+export function migrateFavourites(): void {
+  const version = Number(read(DEFAULTS_VERSION_KEY) ?? 1);
+  if (version >= 2) return;
+  const stored = readStoredFavourites();
+  if (stored) {
+    // TUS Moylish became a combined board with Mayorstone Upper.
+    const upgraded = stored.map((f) => (f.atco === TUS_MOYLISH_STOP ? { ...f, atco: TUS_MOYLISH } : f));
+    for (const f of upgraded) {
+      if (f.routes && read(ROUTES_PREFIX + f.atco) === null) setRouteFilter(f.atco, f.routes);
+    }
+    const favourites = upgraded.map(({ atco, name }) => ({ atco, name }));
+    if (!favourites.some((f) => f.atco === COLBERT_STATION_DEPARTURES)) {
+      favourites.push({ ...DEFAULT_FAVOURITES[1] });
+    }
+    setFavourites(favourites);
+  }
+  if (getLastStop() === TUS_MOYLISH_STOP) setLastStop(TUS_MOYLISH);
+  write(DEFAULTS_VERSION_KEY, '2');
+}
 
+/** The stop the app reopens on. */
+export function getLastStop(): string | null {
+  return read(LAST_STOP_KEY);
+}
+
+export function setLastStop(atco: string): void {
+  write(LAST_STOP_KEY, atco);
+}
+
+// --- Route filters -------------------------------------------------------
+
+// Kept separately from saved stops so saving or removing a stop never
+// changes which routes it shows.
+const ROUTES_PREFIX = 'routes:';
+
+/** Route numbers to show at a stop; empty means every route. */
 export function getRouteFilter(atco: string): string[] {
-  return getFavourite(atco)?.routes ?? browsingRoutes.get(atco) ?? [];
+  return readJson<string[]>(ROUTES_PREFIX + atco) ?? DEFAULT_ROUTES[atco] ?? [];
 }
 
 export function setRouteFilter(atco: string, routes: string[]): void {
-  const favourite = getFavourite(atco);
-  if (favourite) saveFavourite({ ...favourite, routes });
-  else browsingRoutes.set(atco, routes);
+  write(ROUTES_PREFIX + atco, JSON.stringify(routes));
 }
 
 // --- Expiring cache ------------------------------------------------------

@@ -2,7 +2,9 @@ import './style.css';
 import { showBoard } from './board';
 import { initPwa } from './pwa';
 import { showStops } from './stops';
-import { getFavourites, pruneCache } from './store';
+import { getFavourites, getLastStop, migrateFavourites, pruneCache } from './store';
+
+migrateFavourites();
 
 const app = document.getElementById('app')!;
 let teardown: (() => void) | null = null;
@@ -17,8 +19,11 @@ function route(): void {
   if (stopMatch) next = `stop:${decodeURIComponent(stopMatch[1])}`;
   else if (hash === '/stops') next = 'stops';
   else {
-    const [first] = getFavourites();
-    location.replace(first ? `#/stop/${encodeURIComponent(first.atco)}` : '#/stops');
+    // Reopen the saved stop they looked at last, like most transit apps.
+    const saved = getFavourites();
+    const last = getLastStop();
+    const home = saved.find((f) => f.atco === last) ?? saved[0];
+    location.replace(home ? `#/stop/${encodeURIComponent(home.atco)}` : '#/stops');
     return;
   }
   if (next === currentRoute) return;
@@ -33,8 +38,6 @@ function route(): void {
     if (isCurrent) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   });
-  const boardLink = document.querySelector<HTMLAnchorElement>('[data-nav="board"]');
-  if (boardLink && next.startsWith('stop:')) boardLink.href = location.hash;
 }
 
 window.addEventListener('hashchange', route);
