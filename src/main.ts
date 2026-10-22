@@ -2,9 +2,7 @@ import './style.css';
 import { showBoard } from './board';
 import { initPwa } from './pwa';
 import { showStops } from './stops';
-import { getFavourites, migrateFavourites, pruneCache } from './store';
-
-migrateFavourites();
+import { getFavourites, pruneCache } from './store';
 
 const app = document.getElementById('app')!;
 let teardown: (() => void) | null = null;

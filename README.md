@@ -2,7 +2,8 @@
 
 A small, installable web app (PWA) that shows live bus departures for your
 stop, using the same data as [bustimes.org](https://bustimes.org). The stop
-name at the top is a dropdown of saved stops, which come set up for the 302:
+name at the top is a dropdown of stops. These four are built in and can't be
+removed:
 
 - **Limerick IT** (where the app opens): buses into the city
 - **City (Harvey's Quay)**: buses from the city
@@ -13,7 +14,7 @@ You can save any other stop in Great Britain or Ireland.
 
 - **Stops** (top right) finds stops near you or by code; **Back to
   departures** returns to the board.
-- Tap **Save** on any stop to add it to the dropdown and the Stops page.
+- Tap **Save** on any other stop to add it below them; those can be removed.
 - Buttons for each route with a bus leaving soon filter the board. Each stop
   always opens on its usual route (the 302, or the 55 at Colbert Station).
 

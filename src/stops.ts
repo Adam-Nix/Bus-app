@@ -1,7 +1,7 @@
 import { fetchStop, fetchStopByNaptan, fetchStopsInBox, type NearbyStop } from './api';
 import { distanceMetres, distanceText, escapeHtml, parseStopInput } from './format';
 import { installSection, promptInstall } from './pwa';
-import { defaultRoutes, getFavourites, getLastStop, removeFavourite } from './store';
+import { defaultRoutes, getFavourites, getLastStop, isBuiltIn, removeFavourite } from './store';
 
 // About 900 m north/south and east/west at British and Irish latitudes.
 const BOX_LAT = 0.008;
@@ -26,9 +26,6 @@ function routesText(routes: string[]): string {
 
 function renderSaved(): string {
   const favourites = getFavourites();
-  if (favourites.length === 0) {
-    return '<p class="muted">No saved stops yet. Open a stop and tap <strong>Save</strong> to keep it here and as a tab on the board.</p>';
-  }
   return `<ul class="stop-list">${favourites
     .map(
       (f) => `
@@ -37,10 +34,14 @@ function renderSaved(): string {
           <span class="stop-link-name">${escapeHtml(f.name)}</span>
           <span class="stop-link-meta">${routesText(defaultRoutes(f.atco))}</span>
         </a>
-        <button class="icon-button" data-action="remove" data-atco="${escapeHtml(f.atco)}"
+        ${
+          isBuiltIn(f.atco)
+            ? ''
+            : `<button class="icon-button" data-action="remove" data-atco="${escapeHtml(f.atco)}"
           aria-label="Remove ${escapeHtml(f.name)}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-        </button>
+        </button>`
+        }
       </li>`,
     )
     .join('')}</ul>`;
