@@ -1,13 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_FAVOURITES,
+  defaultRoutes,
   getFavourite,
   getFavourites,
-  getRouteFilter,
   migrateFavourites,
   removeFavourite,
   saveFavourite,
-  setRouteFilter,
 } from '../src/store';
 
 const LIMERICK_IT = '8400B6069401';
@@ -43,24 +42,21 @@ describe('saved stops', () => {
       'Mayorstone Upper',
       'Colbert Station',
     ]);
-    expect(getRouteFilter(LIMERICK_IT)).toEqual(['302']);
-    expect(getRouteFilter(CITY)).toEqual(['302']);
-    expect(getRouteFilter(MAYORSTONE)).toEqual(['302']);
-    expect(getRouteFilter(COLBERT)).toEqual(['55']);
+    expect(defaultRoutes(LIMERICK_IT)).toEqual(['302']);
+    expect(defaultRoutes(CITY)).toEqual(['302']);
+    expect(defaultRoutes(MAYORSTONE)).toEqual(['302']);
+    expect(defaultRoutes(COLBERT)).toEqual(['55']);
   });
 
-  it('keeps the route filter when a stop is removed and saved again', () => {
-    setRouteFilter(LIMERICK_IT, ['302', '330X']);
+  it('removes and saves stops again', () => {
     removeFavourite(LIMERICK_IT);
     expect(getFavourite(LIMERICK_IT)).toBeUndefined();
-    expect(getRouteFilter(LIMERICK_IT)).toEqual(['302', '330X']);
     saveFavourite({ atco: LIMERICK_IT, name: 'Limerick IT' });
-    expect(getRouteFilter(LIMERICK_IT)).toEqual(['302', '330X']);
+    expect(atcos()).toEqual([CITY, MAYORSTONE, COLBERT, LIMERICK_IT]);
   });
 
-  it('remembers route filters on stops that are not saved', () => {
-    setRouteFilter('8400B6068801', ['302']);
-    expect(getRouteFilter('8400B6068801')).toEqual(['302']);
+  it('shows every route at stops without a default', () => {
+    expect(defaultRoutes('8400B6068801')).toEqual([]);
   });
 
   it('never changes the built-in defaults', () => {
@@ -79,7 +75,6 @@ describe('migrateFavourites', () => {
     });
     migrateFavourites();
     expect(atcos()).toEqual([...DEFAULTS, 'X']);
-    expect(getRouteFilter('X')).toEqual(['7']);
   });
 
   it('replaces the combined TUS board and both Mayorstone entries from version 3', () => {

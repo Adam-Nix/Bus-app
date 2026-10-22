@@ -80,11 +80,8 @@ const FAVOURITES_KEY = 'favourites';
 const DEFAULTS_VERSION_KEY = 'defaultsVersion';
 const LAST_STOP_KEY = 'lastStop';
 
-/** Saved stops as stored; version 1 also kept the route filter here. */
-type StoredStop = SavedStop & { routes?: string[] };
-
-function readStoredFavourites(): StoredStop[] | null {
-  return readJson<StoredStop[]>(FAVOURITES_KEY);
+function readStoredFavourites(): SavedStop[] | null {
+  return readJson<SavedStop[]>(FAVOURITES_KEY);
 }
 
 export function getFavourites(): SavedStop[] {
@@ -122,10 +119,6 @@ export function migrateFavourites(): void {
   if (version >= CURRENT_DEFAULTS_VERSION) return;
   const stored = readStoredFavourites();
   if (stored) {
-    // Version 1 kept route filters inside the saved-stop list.
-    for (const f of stored) {
-      if (f.routes && read(ROUTES_PREFIX + f.atco) === null) setRouteFilter(f.atco, f.routes);
-    }
     const defaults = DEFAULT_FAVOURITES.map(({ atco, name }) => ({ atco, name }));
     const kept = stored
       .filter((f) => !RETIRED_DEFAULTS.has(f.atco) && !defaults.some((d) => d.atco === f.atco))
@@ -150,17 +143,12 @@ export function setLastStop(atco: string): void {
 
 // --- Route filters -------------------------------------------------------
 
-// Kept separately from saved stops so saving or removing a stop never
-// changes which routes it shows.
-const ROUTES_PREFIX = 'routes:';
-
-/** Route numbers to show at a stop; empty means every route. */
-export function getRouteFilter(atco: string): string[] {
-  return readJson<string[]>(ROUTES_PREFIX + atco) ?? DEFAULT_ROUTES[atco] ?? [];
-}
-
-export function setRouteFilter(atco: string, routes: string[]): void {
-  write(ROUTES_PREFIX + atco, JSON.stringify(routes));
+/**
+ * Routes a stop shows when it's opened; empty means every route. Changes on
+ * the board last until the stop is left, so it always reopens on these.
+ */
+export function defaultRoutes(atco: string): string[] {
+  return DEFAULT_ROUTES[atco] ?? [];
 }
 
 // --- Expiring cache ------------------------------------------------------

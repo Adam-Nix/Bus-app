@@ -279,18 +279,10 @@ h2 {
   pointer-events: none;
 }
 
-/* Route chips scroll sideways rather than wrapping. */
 .chips {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin: 0 -16px;
-  padding: 0 16px;
-}
-
-.chips::-webkit-scrollbar {
-  display: none;
 }
 
 .chips {
