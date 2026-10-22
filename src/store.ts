@@ -48,10 +48,10 @@ export interface SavedStop {
 }
 
 // The 302 is a loop from the city out past the college and back. It's caught
-// into the city at Limerick IT (on the Cratloe Road; bustimes.org calls it
+// into the city at Limerick TUS (on the Cratloe Road; bustimes.org calls it
 // Mayorstone Upper), and back from Harvey's Quay to Mayorstone Upper, the
 // stop across the road.
-const LIMERICK_IT = '8400B6069401';
+const LIMERICK_TUS = '8400B6069401';
 const HARVEYS_QUAY = '8400B610001';
 const MAYORSTONE_UPPER = '8400B6068701';
 const COLBERT_STATION_DEPARTURES = '8400B635041';
@@ -61,14 +61,14 @@ const COLBERT_STATION_DEPARTURES = '8400B635041';
  * removed. The first is where the app opens.
  */
 export const BUILT_IN_STOPS: readonly SavedStop[] = [
-  { atco: LIMERICK_IT, name: 'Limerick IT' },
+  { atco: LIMERICK_TUS, name: 'Limerick TUS' },
   { atco: HARVEYS_QUAY, name: "City (Harvey's Quay)" },
   { atco: MAYORSTONE_UPPER, name: 'Mayorstone Upper' },
   { atco: COLBERT_STATION_DEPARTURES, name: 'Colbert Station' },
 ];
 
 const DEFAULT_ROUTES: Record<string, string[]> = {
-  [LIMERICK_IT]: ['302'],
+  [LIMERICK_TUS]: ['302'],
   [HARVEYS_QUAY]: ['302'],
   [MAYORSTONE_UPPER]: ['302'],
   [COLBERT_STATION_DEPARTURES]: ['55'],

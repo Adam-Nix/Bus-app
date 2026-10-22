@@ -74,7 +74,7 @@ function stopSubtitle(s: State): string {
   }
   const stop = s.stops[s.atco];
   // Saved stops go by the name they were saved as (bustimes.org calls
-  // Limerick IT "Mayorstone Upper", for one), so don't contradict it.
+  // Limerick TUS "Mayorstone Upper", for one), so don't contradict it.
   if (!stop || getFavourite(s.atco)) return '';
   // Skip the full name when the title already says it.
   const parts = [stopTitle(s).startsWith(stop.long_name) ? null : stop.long_name];

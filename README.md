@@ -5,7 +5,7 @@ stop, using the same data as [bustimes.org](https://bustimes.org). The stop
 name at the top is a dropdown of stops. These four are built in and can't be
 removed:
 
-- **Limerick IT** (where the app opens): buses into the city
+- **Limerick TUS** (where the app opens): buses into the city
 - **City (Harvey's Quay)**: buses from the city
 - **Mayorstone Upper**: buses arriving from the city
 - **Colbert Station**: the 55 to Waterford
