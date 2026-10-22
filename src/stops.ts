@@ -1,7 +1,7 @@
 import { fetchStop, fetchStopByNaptan, fetchStopsInBox, type NearbyStop } from './api';
 import { distanceMetres, distanceText, escapeHtml, parseStopInput } from './format';
 import { installSection, promptInstall } from './pwa';
-import { getFavourites, getLastStop, getRouteFilter, removeFavourite } from './store';
+import { defaultRoutes, getFavourites, getLastStop, removeFavourite } from './store';
 
 // About 900 m north/south and east/west at British and Irish latitudes.
 const BOX_LAT = 0.008;
@@ -35,7 +35,7 @@ function renderSaved(): string {
       <li>
         <a class="stop-link" href="#/stop/${encodeURIComponent(f.atco)}">
           <span class="stop-link-name">${escapeHtml(f.name)}</span>
-          <span class="stop-link-meta">${routesText(getRouteFilter(f.atco))}</span>
+          <span class="stop-link-meta">${routesText(defaultRoutes(f.atco))}</span>
         </a>
         <button class="icon-button" data-action="remove" data-atco="${escapeHtml(f.atco)}"
           aria-label="Remove ${escapeHtml(f.name)}">

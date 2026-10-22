@@ -51,8 +51,6 @@ export interface Departure {
 
 export interface Board {
   departures: Departure[];
-  /** Every route that serves the stops, for the filter chips. */
-  lines: string[];
   fetchedAt: number;
   /** False when the timetable loaded but live positions didn't. */
   liveOk: boolean;
@@ -262,7 +260,6 @@ export async function loadBoard(atcos: string[], now = Date.now()): Promise<Boar
 
   return {
     departures,
-    lines: sortLines(services.map((s) => s.line_name)),
     fetchedAt: now,
     liveOk,
   };

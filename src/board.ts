@@ -1,17 +1,16 @@
 import { fetchStop, stopPageUrl, type Stop } from './api';
-import { loadBoard, type Board, type Departure } from './departures';
+import { loadBoard, sortLines, type Board, type Departure } from './departures';
 import { countdown, departureTime, escapeHtml, punctuality, stopsAwayText } from './format';
 import {
   cacheGet,
   cacheGetStale,
   cacheSet,
   getFavourite,
+  defaultRoutes,
   getFavourites,
-  getRouteFilter,
   removeFavourite,
   saveFavourite,
   setLastStop,
-  setRouteFilter,
 } from './store';
 import { formatClock } from './time';
 
@@ -27,6 +26,8 @@ interface State {
   atco: string;
   atcos: string[];
   stops: Record<string, StopInfo>;
+  /** Routes shown; starts at the stop's default each time it's opened. */
+  routes: string[];
   board: Board | null;
   loading: boolean;
   error: string | null;
@@ -172,44 +173,64 @@ function renderStatus(s: State, now: number): string {
   return bits.join('<span class="sep" aria-hidden="true">·</span>');
 }
 
-function pickerOpen(): boolean {
-  return root.contains(document.activeElement) && document.activeElement instanceof HTMLSelectElement;
-}
+// The header (with the stop dropdown) is only redrawn when it changes, so
+// the regular countdown updates never disturb the phone's picker.
+let lastHead = '';
 
-// Wait for focus to settle so a closing picker no longer counts as open.
-function renderSoon(): void {
-  setTimeout(render);
-}
-
-function render(): void {
-  if (!state) return;
-  // Redrawing would close the phone's picker mid-choice; catch up on blur.
-  if (pickerOpen()) return;
-  const s = state;
-  const now = Date.now();
+function renderHead(s: State): string {
   const favourite = getFavourite(s.atco);
-  const filter = getRouteFilter(s.atco);
-  const lines = s.board?.lines ?? [];
+  // The stop name doubles as a dropdown for switching between saved stops.
+  // A native select gives the phone's own picker and works with screen readers.
+  const options = [...getFavourites()];
+  if (!favourite) options.unshift({ atco: s.atco, name: stopTitle(s) });
+  return `
+    <h1 class="visually-hidden">${escapeHtml(stopTitle(s))}</h1>
+    <div class="stop-head">
+      <div class="stop-names">
+        <label class="picker">
+          <span class="visually-hidden">Stop</span>
+          <select data-action="switch">
+            ${options
+              .map(
+                (f) =>
+                  `<option value="${escapeHtml(f.atco)}"${f.atco === s.atco ? ' selected' : ''}>${escapeHtml(f.name)}</option>`,
+              )
+              .join('')}
+          </select>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </label>
+        <p class="stop-sub">${escapeHtml(stopSubtitle(s))}</p>
+      </div>
+      <button class="save" data-action="favourite" aria-pressed="${Boolean(favourite)}"
+        aria-label="Save stop" title="Saved stops appear in this dropdown and on the Stops page">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
+        <span aria-hidden="true">${favourite ? 'Saved' : 'Save'}</span>
+      </button>
+    </div>`;
+}
 
-  const visible = (s.board?.departures ?? []).filter(
-    (d) => departureTime(d) >= now - 60_000 && (filter.length === 0 || filter.includes(d.line)),
-  );
+function renderBody(s: State, now: number): string {
+  const filter = s.routes;
+  const upcoming = (s.board?.departures ?? []).filter((d) => departureTime(d) >= now - 60_000);
+  const visible = upcoming.filter((d) => filter.length === 0 || filter.includes(d.line));
 
-  let body: string;
+  let departures: string;
   if (!s.board) {
-    body = s.error
+    departures = s.error
       ? `<div class="empty"><p>Couldn't load departures.</p><button class="button" data-action="refresh">Try again</button></div>`
       : `<div class="skeleton" aria-hidden="true"><div></div><div></div><div></div></div>`;
   } else if (visible.length === 0) {
     const which = filter.length ? `${filter.join(', ')} ` : '';
-    body = `<div class="empty"><p>No ${escapeHtml(which)}buses in the next 3 hours.</p></div>`;
+    departures = `<div class="empty"><p>No ${escapeHtml(which)}buses in the next 3 hours.</p></div>`;
   } else {
     const [next, ...rest] = visible;
-    body = `${renderHero(next, s, now)}${
+    departures = `${renderHero(next, s, now)}${
       rest.length ? `<h2 class="list-title">Later</h2><ol class="list">${rest.map((d) => renderRow(d, s, now)).join('')}</ol>` : ''
     }`;
   }
 
+  // One button per route with a bus leaving soon, plus any already chosen.
+  const lines = sortLines([...upcoming.map((d) => d.line), ...filter]);
   const chips =
     lines.length > 1
       ? `<div class="chips" role="group" aria-label="Show routes">
@@ -223,58 +244,45 @@ function render(): void {
         </div>`
       : '';
 
-  // The stop name doubles as a dropdown for switching between saved stops.
-  // A native select gives the phone's own picker and works with screen readers.
-  const options = [...getFavourites()];
-  if (!favourite) options.unshift({ atco: s.atco, name: stopTitle(s) });
-  const picker = `
-    <label class="picker">
-      <span class="visually-hidden">Stop</span>
-      <select data-action="switch">
-        ${options
-          .map(
-            (f) =>
-              `<option value="${escapeHtml(f.atco)}"${f.atco === s.atco ? ' selected' : ''}>${escapeHtml(f.name)}</option>`,
-          )
-          .join('')}
-      </select>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-    </label>`;
+  return `
+    ${chips}
+    <div class="status">
+      <span class="status-text">${renderStatus(s, now)}</span>
+      <button class="refresh" data-action="refresh" aria-label="Refresh now" ${s.loading ? 'disabled' : ''}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg>
+      </button>
+    </div>
+    ${departures}
+    <p class="credit">
+      Times from <a href="${stopPageUrl(s.atcos[0])}" target="_blank" rel="noopener">bustimes.org</a>,
+      using public transport open data.
+    </p>`;
+}
 
-  // Re-rendering replaces the buttons, so put keyboard focus back after.
-  const focused = root.contains(document.activeElement)
-    ? (document.activeElement as HTMLElement).dataset
-    : null;
+function render(): void {
+  if (!state) return;
+  const s = state;
 
-  root.innerHTML = `
-    <section class="board">
-      <h1 class="visually-hidden">${escapeHtml(stopTitle(s))}</h1>
-      <div class="stop-head">
-        <div class="stop-names">
-          ${picker}
-          <p class="stop-sub">${escapeHtml(stopSubtitle(s))}</p>
-        </div>
-        <button class="save" data-action="favourite" aria-pressed="${Boolean(favourite)}"
-          aria-label="Save stop" title="Saved stops appear as tabs and on the Stops page">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
-          <span aria-hidden="true">${favourite ? 'Saved' : 'Save'}</span>
-        </button>
-      </div>
-      ${chips}
-      <div class="status">
-        <span class="status-text">${renderStatus(s, now)}</span>
-        <button class="refresh" data-action="refresh" aria-label="Refresh now" ${s.loading ? 'disabled' : ''}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg>
-        </button>
-      </div>
-      ${body}
-      <p class="credit">
-        Times from <a href="${stopPageUrl(s.atcos[0])}" target="_blank" rel="noopener">bustimes.org</a>,
-        using public transport open data.
-      </p>
-    </section>`;
+  let head = root.querySelector<HTMLElement>('[data-part="head"]');
+  let body = root.querySelector<HTMLElement>('[data-part="body"]');
+  if (!head || !body) {
+    root.innerHTML = '<section class="board"><div data-part="head"></div><div data-part="body"></div></section>';
+    head = root.querySelector<HTMLElement>('[data-part="head"]')!;
+    body = root.querySelector<HTMLElement>('[data-part="body"]')!;
+    lastHead = '';
+  }
 
-  if (focused?.action) {
+  // Redrawing replaces buttons, so put keyboard focus back after.
+  const focused = root.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset : null;
+
+  const headHtml = renderHead(s);
+  if (headHtml !== lastHead) {
+    head.innerHTML = headHtml;
+    lastHead = headHtml;
+  }
+  body.innerHTML = renderBody(s, Date.now());
+
+  if (focused?.action && !root.contains(document.activeElement)) {
     const selector = `[data-action="${focused.action}"]${
       focused.route !== undefined ? `[data-route="${CSS.escape(focused.route)}"]` : ''
     }`;
@@ -345,9 +353,8 @@ function onClick(event: MouseEvent): void {
     }
     case 'route': {
       const route = target.dataset.route ?? '';
-      const current = getRouteFilter(atco);
-      const next = !route ? [] : current.includes(route) ? current.filter((r) => r !== route) : [...current, route];
-      setRouteFilter(atco, next);
+      const current = state.routes;
+      state.routes = !route ? [] : current.includes(route) ? current.filter((r) => r !== route) : [...current, route];
       render();
       break;
     }
@@ -357,6 +364,7 @@ function onClick(event: MouseEvent): void {
 function onChange(event: Event): void {
   const select = event.target as HTMLSelectElement;
   if (select.dataset.action !== 'switch' || !state || select.value === state.atco) return;
+  select.blur();
   location.hash = `#/stop/${encodeURIComponent(select.value)}`;
 }
 
@@ -370,6 +378,7 @@ function onOnline(): void {
 
 export function showBoard(container: HTMLElement, atco: string): () => void {
   root = container;
+  root.innerHTML = '';
   const atcos = atco.split(',').filter(Boolean);
   setLastStop(atco);
   const snapshot = cacheGetStale<Board>(snapshotKey(atco));
@@ -377,6 +386,7 @@ export function showBoard(container: HTMLElement, atco: string): () => void {
   state = {
     atco,
     atcos,
+    routes: defaultRoutes(atco),
     stops: Object.fromEntries(
       atcos.flatMap((a) => {
         const info = cacheGetStale<StopInfo>(`stop:${a}`);
@@ -395,7 +405,6 @@ export function showBoard(container: HTMLElement, atco: string): () => void {
 
   root.addEventListener('click', onClick);
   root.addEventListener('change', onChange);
-  root.addEventListener('focusout', renderSoon);
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('online', onOnline);
   timer = window.setInterval(tick, TICK_MS);
@@ -405,7 +414,6 @@ export function showBoard(container: HTMLElement, atco: string): () => void {
     window.clearInterval(timer);
     root.removeEventListener('click', onClick);
     root.removeEventListener('change', onChange);
-    root.removeEventListener('focusout', renderSoon);
     document.removeEventListener('visibilitychange', onVisibility);
     window.removeEventListener('online', onOnline);
   };

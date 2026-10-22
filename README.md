@@ -14,7 +14,8 @@ You can save any other stop in Great Britain or Ireland.
 - **Stops** (top right) finds stops near you or by code; **Back to
   departures** returns to the board.
 - Tap **Save** on any stop to add it to the dropdown and the Stops page.
-- Route filters (e.g. only the 302) are remembered per stop.
+- Buttons for each route with a bus leaving soon filter the board. Each stop
+  always opens on its usual route (the 302, or the 55 at Colbert Station).
 
 - Big "next bus" countdown, with live tracking, how many stops away the bus
   is, and whether it's running late.
