@@ -134,12 +134,31 @@ svg {
   text-decoration: none;
 }
 
+.brand span {
+  white-space: nowrap;
+}
+
+/* On the narrowest phones, the icon alone leaves room for both buttons. */
+@media (max-width: 359px) {
+  .brand span {
+    display: none;
+  }
+}
+
 .brand img {
   border-radius: 7px;
 }
 
+.topbar nav {
+  display: flex;
+  gap: 8px;
+}
+
 .nav-link {
   display: inline-flex;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
   align-items: center;
   gap: 6px;
   min-height: 44px;
@@ -149,6 +168,10 @@ svg {
   font-weight: 600;
   text-decoration: none;
   background: var(--surface-2);
+}
+
+.nav-link[hidden] {
+  display: none;
 }
 
 .nav-link[aria-current='page'] {
@@ -783,6 +806,17 @@ input:not([type]) {
 
 .lookup .warn {
   margin: 10px 0 0;
+}
+
+#install {
+  scroll-margin-top: 88px;
+}
+
+.version {
+  margin-top: 32px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
 }
 
 .install-steps {

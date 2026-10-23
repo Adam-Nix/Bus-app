@@ -1,6 +1,6 @@
 import './style.css';
 import { showBoard } from './board';
-import { initPwa } from './pwa';
+import { initPwa, isStandalone, promptInstall } from './pwa';
 import { showStops } from './stops';
 import { getFavourites, pruneCache } from './store';
 
@@ -28,6 +28,10 @@ function route(): void {
   teardown?.();
   window.scrollTo(0, 0);
   teardown = next === 'stops' ? showStops(app) : showBoard(app, next.slice('stop:'.length));
+  if (next === 'stops' && scrollToInstall) {
+    scrollToInstall = false;
+    document.getElementById('install')?.scrollIntoView({ block: 'start' });
+  }
 
   document.querySelectorAll<HTMLAnchorElement>('[data-nav]').forEach((link) => {
     const isCurrent = link.dataset.nav === (next === 'stops' ? 'stops' : 'board');
@@ -35,6 +39,25 @@ function route(): void {
     else link.removeAttribute('aria-current');
   });
 }
+
+// The Install button in the top bar uses the browser's prompt when there is
+// one; otherwise it opens the steps at the bottom of the Stops page.
+const installButton = document.querySelector<HTMLButtonElement>('[data-install]')!;
+let scrollToInstall = false;
+
+function updateInstallButton(): void {
+  installButton.hidden = isStandalone();
+}
+
+installButton.addEventListener('click', async () => {
+  if (await promptInstall()) return;
+  scrollToInstall = true;
+  if (location.hash === '#/stops') currentRoute = '';
+  location.hash = '#/stops';
+  route();
+});
+
+updateInstallButton();
 
 // Every launch starts on the first built-in stop. A stop left in the address
 // from last time (possibly one an older version used) would otherwise win.
@@ -46,7 +69,8 @@ window.addEventListener('hashchange', route);
 route();
 
 initPwa(() => {
-  // Re-render the stops page so the install button appears or disappears.
+  updateInstallButton();
+  // Re-render the stops page so the install section appears or disappears.
   if (currentRoute === 'stops') {
     currentRoute = '';
     route();
