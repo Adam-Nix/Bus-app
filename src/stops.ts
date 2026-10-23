@@ -123,6 +123,8 @@ function render(): void {
       </form>
 
       ${installSection()}
+
+      <p class="version">Version ${escapeHtml(__APP_VERSION__)}</p>
     </section>`;
 }
 

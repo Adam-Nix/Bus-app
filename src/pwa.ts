@@ -8,7 +8,7 @@ interface BeforeInstallPromptEvent extends Event {
 
 let deferredPrompt: BeforeInstallPromptEvent | null = null;
 
-function isStandalone(): boolean {
+export function isStandalone(): boolean {
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
     (navigator as Navigator & { standalone?: boolean }).standalone === true
@@ -47,16 +47,20 @@ export function initPwa(onInstallAvailable: () => void): void {
 
 let showSteps = false;
 
-/** Shows the browser's install prompt, or the manual steps if there isn't one. */
-export async function promptInstall(): Promise<void> {
+/**
+ * Shows the browser's install prompt and returns true, or, if the browser
+ * doesn't offer one, turns on the manual steps and returns false.
+ */
+export async function promptInstall(): Promise<boolean> {
   if (!deferredPrompt) {
     showSteps = true;
-    return;
+    return false;
   }
   const prompt = deferredPrompt;
   deferredPrompt = null;
   await prompt.prompt();
   await prompt.userChoice;
+  return true;
 }
 
 function installSteps(): string {
@@ -72,7 +76,7 @@ function installSteps(): string {
 export function installSection(): string {
   if (isStandalone()) return '';
   return `
-    <h2>Install</h2>
+    <h2 id="install">Install</h2>
     <p class="muted">Add Next Bus to your home screen so it opens like an app, even with no signal.</p>
     <button class="button primary" data-action="install">Add to home screen</button>
     ${showSteps ? `<div class="install-steps" role="status">${installSteps()}</div>` : ''}`;

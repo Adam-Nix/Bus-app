@@ -6,8 +6,14 @@ import { VitePWA } from 'vite-plugin-pwa';
 // the right base path in. Locally the app is served from the root.
 const base = process.env.BASE_PATH ?? '/';
 
+// Shown on the Stops page so it's easy to tell which version a phone has.
+const version = `${(process.env.GITHUB_SHA ?? 'dev').slice(0, 7)} · ${new Date().toISOString().slice(0, 10)}`;
+
 export default defineConfig({
   base,
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+  },
   plugins: [
     VitePWA({
       registerType: 'prompt',
