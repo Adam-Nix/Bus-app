@@ -13,7 +13,19 @@ import {
   saveFavourite,
   setLastStop,
 } from './store';
-import { formatClock } from './time';
+import {
+  ALERT_MINUTES,
+  follow,
+  followedTime,
+  getFollowed,
+  isFollowing,
+  notificationsBlocked,
+  onFollowChange,
+  unfollow,
+  type Followed,
+} from './follow';
+import { spotter, spotterRank, tapBus } from './spotter';
+import { formatClock, minutesUntil } from './time';
 import { loadWeather, type Weather } from './weather';
 import { weatherIcon } from './weather-icons';
 
@@ -124,6 +136,68 @@ function timesLine(d: Departure, s: State): string {
   return parts.join(' · ');
 }
 
+const BELL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/></svg>';
+const BUS =
+  '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="12" y="10" width="40" height="40" rx="8" fill="#ffd23f"/><rect x="17" y="15" width="30" height="15" rx="3" fill="#0f6b4f"/><circle cx="21" cy="42" r="3.5" fill="#0f6b4f"/><circle cx="43" cy="42" r="3.5" fill="#0f6b4f"/><rect x="16" y="50" width="8" height="6" rx="2" fill="#333"/><rect x="40" y="50" width="8" height="6" rx="2" fill="#333"/></svg>';
+
+function bellButton(d: Departure): string {
+  const on = isFollowing(d, getFollowed());
+  return `<button class="bell" data-action="follow" data-trip="${d.tripId}" data-stop="${escapeHtml(d.stop)}"
+    aria-pressed="${on}" aria-label="${on ? 'Stop following' : 'Notify me'} ${ALERT_MINUTES} minutes before this ${escapeHtml(d.line)}">${BELL}</button>`;
+}
+
+function renderSpotter(f: Followed): string {
+  const data = spotter();
+  if (!data.unlocked) return '';
+  const counts = Object.values(data.seen);
+  const total = counts.reduce((a, b) => a + b, 0);
+  const thisBus = f.vehicleName
+    ? `This bus: <strong>${escapeHtml(f.vehicleName)}</strong>, caught ${data.seen[f.vehicleName] ?? 0}×`
+    : "This bus isn't live-tracked, so it can't be logged";
+  return `
+    <div class="spotter">
+      <div class="spotter-head">🔭 <strong>Bus Spotter</strong><span class="spotter-rank">${spotterRank(total)}</span></div>
+      <p>${thisBus}</p>
+      <p class="muted">${counts.length} different ${counts.length === 1 ? 'bus' : 'buses'} caught, ${total} in total. Catch a live bus with an alert to log it.</p>
+    </div>`;
+}
+
+function renderFollow(s: State, now: number): string {
+  const f = getFollowed();
+  if (!f) return '';
+  const minutes = minutesUntil(followedTime(f), now);
+  // The bus drives along the road over its last half hour.
+  const progress = Math.max(0, Math.min(1, 1 - minutes / 30));
+  const due = f.expected !== null ? `expected ${formatClock(f.expected)}` : `due ${formatClock(f.scheduled)}`;
+  const status = f.alerted
+    ? '🔔 Alert sent. Head to the stop!'
+    : `🔔 Alert at ${ALERT_MINUTES} min${notificationsBlocked() ? ' (in the app only: notifications are off)' : ''}`;
+  return `
+    <section class="follow${f.alerted ? ' alerted' : ''}" aria-label="Following the ${escapeHtml(f.line)} to ${escapeHtml(f.destination)}">
+      <div class="follow-head">
+        <span class="route-badge small">${escapeHtml(f.line)}</span>
+        <div class="follow-title">
+          <strong>Following</strong> to ${escapeHtml(f.destination)}
+          <span>from ${escapeHtml(f.stopName)} · ${due}</span>
+        </div>
+        <button class="follow-stop" data-action="unfollow">Stop</button>
+      </div>
+      <div class="follow-body">
+        <span class="follow-count"><strong>${minutes === 0 ? 'Due' : minutes}</strong>${minutes === 0 ? '' : ' min'}</span>
+        <span class="follow-status">${status}</span>
+      </div>
+      <div class="road" aria-hidden="true">
+        <span class="road-line"></span>
+        <button class="road-bus" data-action="honk" tabindex="-1" style="left: calc(${progress.toFixed(3)} * (100% - 76px))">${BUS}</button>
+        <span class="road-stop">🚏</span>
+      </div>
+      ${f.stopsAway !== null ? `<p class="follow-away">${stopsAwayText(f.stopsAway)}</p>` : ''}
+      ${f.board !== s.atco ? `<p><a href="#/stop/${encodeURIComponent(f.board)}">Go to ${escapeHtml(f.stopName)}</a></p>` : ''}
+      <p class="follow-note">Keep Next Bus open: phones pause web apps in the background.</p>
+      ${renderSpotter(f)}
+    </section>`;
+}
+
 function renderHero(d: Departure, s: State, now: number): string {
   const c = countdown(d, now);
   return `
@@ -131,6 +205,7 @@ function renderHero(d: Departure, s: State, now: number): string {
       <div class="hero-route">
         <span class="route-badge">${escapeHtml(d.line)}</span>
         <span class="hero-dest">${escapeHtml(d.destination)}</span>
+        ${bellButton(d)}
       </div>
       <div class="hero-countdown" aria-hidden="true">
         <span class="hero-value">${escapeHtml(c.value)}</span>
@@ -157,6 +232,7 @@ function renderRow(d: Departure, s: State, now: number): string {
         <span class="row-value">${escapeHtml(c.value)}${c.unit ? `<small> ${c.unit}</small>` : ''}</span>
         ${c.value === clock ? '' : `<span class="row-clock">${clock}</span>`}
       </div>
+      ${bellButton(d)}
     </li>`;
 }
 
@@ -272,6 +348,7 @@ function renderBody(s: State, now: number): string {
       : '';
 
   return `
+    ${renderFollow(s, now)}
     ${chips}
     <div class="status">
       <span class="status-text">${renderStatus(s, now)}</span>
@@ -399,6 +476,28 @@ function onClick(event: MouseEvent): void {
       render();
       break;
     }
+    case 'follow': {
+      const d = state.board?.departures.find(
+        (x) => String(x.tripId) === target.dataset.trip && x.stop === target.dataset.stop,
+      );
+      if (!d) break;
+      if (isFollowing(d, getFollowed())) {
+        unfollow();
+        announce('Stopped following');
+      } else {
+        void follow(d, atco, stopTitle(state));
+        announce(`Following the ${d.line}. You'll get an alert ${ALERT_MINUTES} minutes before it arrives.`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      break;
+    }
+    case 'unfollow':
+      unfollow();
+      announce('Stopped following');
+      break;
+    case 'honk':
+      honk(target);
+      break;
     case 'route': {
       const route = target.dataset.route ?? '';
       const current = state.routes;
@@ -416,6 +515,40 @@ function onChange(event: Event): void {
   if (select.dataset.action !== 'switch' || !state || select.value === state.atco) return;
   select.blur();
   location.hash = `#/stop/${encodeURIComponent(select.value)}`;
+}
+
+/** The secret: tap the bus five times quickly. After that, it honks. */
+function honk(bus: HTMLElement): void {
+  if (tapBus()) {
+    announce('Bus Spotter unlocked!');
+    confetti();
+    render();
+    return;
+  }
+  if (!spotter().unlocked) return;
+  bus.classList.remove('honking');
+  void bus.offsetWidth; // Restart the animation.
+  bus.classList.add('honking');
+  const bubble = document.createElement('span');
+  bubble.className = 'beep';
+  bubble.textContent = 'Beep beep!';
+  bus.append(bubble);
+  setTimeout(() => bubble.remove(), 1200);
+}
+
+function confetti(): void {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const colours = ['#ffd23f', '#37c093', '#2f80d1', '#ff7a59', '#b072ff'];
+  for (let i = 0; i < 40; i++) {
+    const piece = document.createElement('span');
+    piece.className = 'confetti';
+    piece.style.left = `${Math.random() * 100}vw`;
+    piece.style.background = colours[i % colours.length];
+    piece.style.animationDelay = `${Math.random() * 0.3}s`;
+    piece.style.setProperty('--drift', `${(Math.random() - 0.5) * 120}px`);
+    document.body.append(piece);
+    setTimeout(() => piece.remove(), 2200);
+  }
 }
 
 function onVisibility(): void {
@@ -456,6 +589,7 @@ export function showBoard(container: HTMLElement, atco: string): () => void {
 
   root.addEventListener('click', onClick);
   root.addEventListener('change', onChange);
+  const stopWatchingFollow = onFollowChange(render);
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('online', onOnline);
   timer = window.setInterval(tick, TICK_MS);
@@ -465,6 +599,7 @@ export function showBoard(container: HTMLElement, atco: string): () => void {
     window.clearInterval(timer);
     root.removeEventListener('click', onClick);
     root.removeEventListener('change', onChange);
+    stopWatchingFollow();
     document.removeEventListener('visibilitychange', onVisibility);
     window.removeEventListener('online', onOnline);
   };

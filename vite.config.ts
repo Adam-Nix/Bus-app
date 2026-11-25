@@ -39,6 +39,7 @@ export default defineConfig({
         shortcuts: [{ name: 'Stops', url: `${base}#/stops`, icons: [{ src: 'pwa-192.png', sizes: '192x192' }] }],
       },
       workbox: {
+        importScripts: ['sw-notify.js'],
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
