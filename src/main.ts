@@ -61,7 +61,9 @@ updateInstallButton();
 
 // Every launch starts on the first built-in stop. A stop left in the address
 // from last time (possibly one an older version used) would otherwise win.
-if (location.hash.startsWith('#/stop/')) {
+// A refresh is different: it stays on the stop being looked at.
+const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+if (navigation?.type !== 'reload' && location.hash.startsWith('#/stop/')) {
   history.replaceState(null, '', location.pathname + location.search);
 }
 

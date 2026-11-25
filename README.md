@@ -2,13 +2,14 @@
 
 A small, installable web app (PWA) that shows live bus departures for your
 stop, using the same data as [bustimes.org](https://bustimes.org). The stop
-name at the top is a dropdown of stops. These four are built in and can't be
+name at the top is a dropdown of stops. These five are built in and can't be
 removed:
 
 - **Limerick TUS** (where the app opens): buses into the city
 - **City (Harvey's Quay)**: buses from the city
 - **Mayorstone Upper**: buses arriving from the city
 - **Colbert Station**: the 55 to Waterford
+- **Pallasgreen**: buses back to Limerick
 
 You can save any other stop in Great Britain or Ireland.
 

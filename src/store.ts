@@ -55,6 +55,8 @@ const LIMERICK_TUS = '8400B6069401';
 const HARVEYS_QUAY = '8400B610001';
 const MAYORSTONE_UPPER = '8400B6068701';
 const COLBERT_STATION_DEPARTURES = '8400B635041';
+// The Limerick-bound side, for the 55 (and 347) back into town.
+const PALLASGREEN_TO_LIMERICK = '8410B3501101';
 
 /**
  * Built into the app: always in the dropdown, in this order, and can't be
@@ -65,6 +67,7 @@ export const BUILT_IN_STOPS: readonly SavedStop[] = [
   { atco: HARVEYS_QUAY, name: "City (Harvey's Quay)" },
   { atco: MAYORSTONE_UPPER, name: 'Mayorstone Upper' },
   { atco: COLBERT_STATION_DEPARTURES, name: 'Colbert Station' },
+  { atco: PALLASGREEN_TO_LIMERICK, name: 'Pallasgreen' },
 ];
 
 const DEFAULT_ROUTES: Record<string, string[]> = {
