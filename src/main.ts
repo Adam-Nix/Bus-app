@@ -3,6 +3,8 @@ import { showBoard } from './board';
 import { initPwa, isStandalone, promptInstall } from './pwa';
 import { showStops } from './stops';
 import { getFavourites, pruneCache } from './store';
+import { onAlert, startFollowWatcher } from './follow';
+import { recordSpot } from './spotter';
 
 const app = document.getElementById('app')!;
 let teardown: (() => void) | null = null;
@@ -78,6 +80,12 @@ initPwa(() => {
     route();
   }
 });
+
+// Follow a bus across every page, and log live buses caught for the spotter.
+onAlert((f) => {
+  if (f.vehicleName && f.expected !== null) recordSpot(f.vehicleName);
+});
+startFollowWatcher();
 
 // Trip timetables are cached for a week; drop anything long expired.
 pruneCache(24 * 60 * 60_000);

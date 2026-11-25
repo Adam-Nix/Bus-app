@@ -23,6 +23,9 @@ You can save any other stop in Great Britain or Ireland.
   is, and whether it's running late.
 - Current weather at the stop (icon, temperature and chance of rain) from
   [Open-Meteo](https://open-meteo.com/), free and with no API key.
+- Tap the bell on any bus to follow it: a card shows it coming, and you get
+  a notification when it's 10 minutes away. This runs in the app, so it needs
+  Next Bus open (phones pause web apps in the background).
 - Refreshes every 30 seconds while it's open; pauses in the background.
 - Works offline: opens instantly and falls back to timetable times.
 - Find stops near you, or open one by code or bustimes.org link.

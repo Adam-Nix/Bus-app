@@ -39,6 +39,18 @@ function readJson<T>(key: string): T | null {
   }
 }
 
+// --- Small settings ------------------------------------------------------
+
+export function readSetting<T>(key: string): T | null {
+  return readJson<T>(key);
+}
+
+/** Stores a value, or removes it when given null. */
+export function writeSetting(key: string, value: unknown): void {
+  if (value === null) remove(key);
+  else write(key, JSON.stringify(value));
+}
+
 // --- Saved stops ---------------------------------------------------------
 
 export interface SavedStop {
