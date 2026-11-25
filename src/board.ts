@@ -1,5 +1,5 @@
 import { fetchStop, stopPageUrl, type Stop } from './api';
-import { loadBoard, sortLines, type Board, type Departure } from './departures';
+import { HORIZON_MS, loadBoard, sortLines, type Board, type Departure } from './departures';
 import { countdown, departureTime, escapeHtml, punctuality, stopsAwayText } from './format';
 import {
   cacheGet,
@@ -247,7 +247,8 @@ function renderBody(s: State, now: number): string {
       : `<div class="skeleton" aria-hidden="true"><div></div><div></div><div></div></div>`;
   } else if (visible.length === 0) {
     const which = filter.length ? `${filter.join(', ')} ` : '';
-    departures = `<div class="empty"><p>No ${escapeHtml(which)}buses in the next 3 hours.</p></div>`;
+    const hours = Math.round((s.board.horizonMs ?? HORIZON_MS) / 3_600_000);
+    departures = `<div class="empty"><p>No ${escapeHtml(which)}buses in the next ${hours} hours.</p></div>`;
   } else {
     const [next, ...rest] = visible;
     departures = `${renderHero(next, s, now)}${
@@ -331,7 +332,7 @@ async function refresh(manual = false): Promise<void> {
   try {
     // Stops saved by older versions lack the location the weather needs.
     const missing = s.atcos.filter((a) => !s.stops[a]?.location);
-    const [board, infos] = await Promise.all([loadBoard(s.atcos), Promise.all(missing.map(getStopInfo))]);
+    const [board, infos] = await Promise.all([loadBoard(s.atcos, s.routes), Promise.all(missing.map(getStopInfo))]);
     if (state !== s) return; // Navigated away while loading.
     s.board = board;
     missing.forEach((a, i) => {
@@ -403,6 +404,8 @@ function onClick(event: MouseEvent): void {
       const current = state.routes;
       state.routes = !route ? [] : current.includes(route) ? current.filter((r) => r !== route) : [...current, route];
       render();
+      // A quiet route may need the board to look further ahead.
+      void refresh();
       break;
     }
   }

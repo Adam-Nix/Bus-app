@@ -13,7 +13,8 @@ const LIMERICK_TUS = '8400B6069401';
 const CITY = '8400B610001';
 const MAYORSTONE = '8400B6068701';
 const COLBERT = '8400B635041';
-const BUILT_IN = [LIMERICK_TUS, CITY, MAYORSTONE, COLBERT];
+const PALLASGREEN = '8410B3501101';
+const BUILT_IN = [LIMERICK_TUS, CITY, MAYORSTONE, COLBERT, PALLASGREEN];
 
 function useStorage(initial: Record<string, string> = {}) {
   const data = new Map(Object.entries(initial));
@@ -28,12 +29,13 @@ beforeEach(() => useStorage());
 const atcos = () => getFavourites().map((f) => f.atco);
 
 describe('built-in stops', () => {
-  it('are Limerick TUS, the city, Mayorstone Upper and Colbert Station', () => {
+  it('are Limerick TUS, the city, Mayorstone Upper, Colbert Station and Pallasgreen', () => {
     expect(getFavourites().map((f) => f.name)).toEqual([
       'Limerick TUS',
       "City (Harvey's Quay)",
       'Mayorstone Upper',
       'Colbert Station',
+      'Pallasgreen',
     ]);
     expect(BUILT_IN.every(isBuiltIn)).toBe(true);
   });
@@ -43,6 +45,7 @@ describe('built-in stops', () => {
     expect(defaultRoutes(CITY)).toEqual(['302']);
     expect(defaultRoutes(MAYORSTONE)).toEqual(['302']);
     expect(defaultRoutes(COLBERT)).toEqual(['55']);
+    expect(defaultRoutes(PALLASGREEN)).toEqual([]);
     expect(defaultRoutes('8400B6068801')).toEqual([]);
   });
 

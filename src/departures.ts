@@ -16,6 +16,10 @@ const HOUR = 60 * MINUTE;
 
 /** How far ahead to look for departures. */
 export const HORIZON_MS = 3 * HOUR;
+/** Quiet stops (e.g. Pallasgreen) look this far ahead so they're not near empty. */
+export const EXTENDED_HORIZON_MS = 12 * HOUR;
+/** Fewer departures than this (on the routes shown) counts as a quiet stop. */
+const MIN_DEPARTURES = 3;
 /** Positions older than this are treated as lost tracking. */
 const STALE_VEHICLE_MS = 10 * MINUTE;
 /** Untracked buses drop off the board this long after their scheduled time. */
@@ -51,6 +55,8 @@ export interface Departure {
 
 export interface Board {
   departures: Departure[];
+  /** How far ahead the board looked; boards saved by older versions lack it. */
+  horizonMs?: number;
   fetchedAt: number;
   /** False when the timetable loaded but live positions didn't. */
   liveOk: boolean;
@@ -213,8 +219,12 @@ function activeServiceDates(now: number): string[] {
   return sinceMidnight < 4 * HOUR ? [addDays(today, -1), today] : [today];
 }
 
-/** Loads departures for one or more nearby stops as a single board. */
-export async function loadBoard(atcos: string[], now = Date.now()): Promise<Board> {
+/**
+ * Loads departures for one or more nearby stops as a single board. `routes`
+ * are the ones being shown: if they have few buses soon, the board looks
+ * further ahead for those routes only, which keeps busy stops cheap.
+ */
+export async function loadBoard(atcos: string[], routes: string[] = [], now = Date.now()): Promise<Board> {
   const perStop = await Promise.all(atcos.map((atco) => getServices(atco)));
   const services = [...new Map(perStop.flat().map((s) => [s.id, s])).values()];
   const dates = activeServiceDates(now);
@@ -225,24 +235,27 @@ export async function loadBoard(atcos: string[], now = Date.now()): Promise<Boar
     ),
   );
 
-  // Trips that start before the horizon and haven't finished yet.
-  const candidates = tripLists.flat().filter(({ trip, date }) => {
-    const start = parseClock(trip.start);
-    const end = parseClock(trip.end) ?? start;
-    if (start === null || end === null) return false;
-    return (
-      serviceTimeToEpoch(date, start) <= now + HORIZON_MS &&
-      serviceTimeToEpoch(date, end) >= now - 5 * MINUTE
-    );
-  });
-
-  const lookups = atcos.flatMap((atco) => candidates.map((c) => ({ atco, c })));
-  const visits = await mapLimit(lookups, TRIP_CONCURRENCY, ({ atco, c }) => getVisit(c.trip.id, atco));
-  const scheduled = new Map<string, ScheduledTrip[]>(atcos.map((atco) => [atco, []]));
-  lookups.forEach(({ atco, c }, i) => {
-    const visit = visits[i];
-    if (visit) scheduled.get(atco)!.push({ ...c, visit });
-  });
+  const tripsWithin = async (horizonMs: number, onlyRoutes: string[] = []) => {
+    // Trips that start before the horizon and haven't finished yet.
+    const candidates = tripLists.flat().filter(({ trip, date }) => {
+      if (onlyRoutes.length > 0 && !onlyRoutes.includes(trip.service.line_name)) return false;
+      const start = parseClock(trip.start);
+      const end = parseClock(trip.end) ?? start;
+      if (start === null || end === null) return false;
+      return (
+        serviceTimeToEpoch(date, start) <= now + horizonMs &&
+        serviceTimeToEpoch(date, end) >= now - 5 * MINUTE
+      );
+    });
+    const lookups = atcos.flatMap((atco) => candidates.map((c) => ({ atco, c })));
+    const visits = await mapLimit(lookups, TRIP_CONCURRENCY, ({ atco, c }) => getVisit(c.trip.id, atco));
+    const scheduled = new Map<string, ScheduledTrip[]>(atcos.map((atco) => [atco, []]));
+    lookups.forEach(({ atco, c }, i) => {
+      const visit = visits[i];
+      if (visit) scheduled.get(atco)!.push({ ...c, visit });
+    });
+    return scheduled;
+  };
 
   let vehicles: Vehicle[] = [];
   let liveOk = true;
@@ -254,12 +267,27 @@ export async function loadBoard(atcos: string[], now = Date.now()): Promise<Boar
     }
   }
 
-  const departures = atcos
-    .flatMap((atco) => buildDepartures(atco, scheduled.get(atco)!, vehicles, now))
-    .sort(byDepartureTime);
+  const departuresWithin = async (horizonMs: number, onlyRoutes?: string[]) => {
+    const scheduled = await tripsWithin(horizonMs, onlyRoutes);
+    return atcos
+      .flatMap((atco) => buildDepartures(atco, scheduled.get(atco)!, vehicles, now, horizonMs))
+      .sort(byDepartureTime);
+  };
+
+  let horizonMs = HORIZON_MS;
+  let departures = await departuresWithin(horizonMs);
+  const shown = departures.filter((d) => routes.length === 0 || routes.includes(d.line));
+  if (shown.length < MIN_DEPARTURES) {
+    // Already-fetched trip times are cached, so this only looks up the rest.
+    const later = await departuresWithin(EXTENDED_HORIZON_MS, routes);
+    const seen = new Set(departures.map((d) => `${d.tripId}:${d.stop}`));
+    departures = [...departures, ...later.filter((d) => !seen.has(`${d.tripId}:${d.stop}`))].sort(byDepartureTime);
+    horizonMs = EXTENDED_HORIZON_MS;
+  }
 
   return {
     departures,
+    horizonMs,
     fetchedAt: now,
     liveOk,
   };
