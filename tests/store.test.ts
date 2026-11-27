@@ -1,20 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  BUILT_IN_STOPS,
-  defaultRoutes,
-  getFavourite,
-  getFavourites,
-  isBuiltIn,
-  removeFavourite,
-  saveFavourite,
-} from '../src/store';
-
-const LIMERICK_TUS = '8400B6069401';
-const CITY = '8400B610001';
-const MAYORSTONE = '8400B6068701';
-const COLBERT = '8400B635041';
-const PALLASGREEN = '8410B3501101';
-const BUILT_IN = [LIMERICK_TUS, CITY, MAYORSTONE, COLBERT, PALLASGREEN];
+import { getFavourite, getFavourites, removeFavourite, saveFavourite } from '../src/store';
 
 function useStorage(initial: Record<string, string> = {}) {
   const data = new Map(Object.entries(initial));
@@ -28,57 +13,28 @@ beforeEach(() => useStorage());
 
 const atcos = () => getFavourites().map((f) => f.atco);
 
-describe('built-in stops', () => {
-  it('are Limerick TUS, the city, Mayorstone Upper, Colbert Station and Pallasgreen', () => {
-    expect(getFavourites().map((f) => f.name)).toEqual([
-      'Limerick TUS',
-      "City (Harvey's Quay)",
-      'Mayorstone Upper',
-      'Colbert Station',
-      'Pallasgreen',
-    ]);
-    expect(BUILT_IN.every(isBuiltIn)).toBe(true);
+describe('saved stops', () => {
+  it('start empty', () => {
+    expect(getFavourites()).toEqual([]);
   });
 
-  it('open on the 302, or the 55 at Colbert Station', () => {
-    expect(defaultRoutes(LIMERICK_TUS)).toEqual(['302']);
-    expect(defaultRoutes(CITY)).toEqual(['302']);
-    expect(defaultRoutes(MAYORSTONE)).toEqual(['302']);
-    expect(defaultRoutes(COLBERT)).toEqual(['55']);
-    expect(defaultRoutes(PALLASGREEN)).toEqual([]);
-    expect(defaultRoutes('8400B6068801')).toEqual([]);
-  });
-
-  it("can't be removed", () => {
-    removeFavourite(COLBERT);
-    expect(atcos()).toEqual(BUILT_IN);
-    expect(getFavourite(COLBERT)?.name).toBe('Colbert Station');
-  });
-
-  it('are always there, whatever an older version stored', () => {
-    useStorage({
-      favourites: JSON.stringify([
-        { atco: '8400B6370801,8400B6069401', name: 'TUS Moylish' },
-        { atco: '8400B6370801', name: 'TUS Moylish', routes: ['302'] },
-        { atco: LIMERICK_TUS, name: 'Mayorstone Upper (to town)' },
-        { atco: 'X', name: 'Elsewhere' },
-      ]),
-    });
-    expect(getFavourites()).toEqual([...BUILT_IN_STOPS, { atco: 'X', name: 'Elsewhere' }]);
-  });
-});
-
-describe('stops the user saves', () => {
-  it('come after the built-in stops and can be removed', () => {
+  it('keep the order they were saved in and can be removed', () => {
     saveFavourite({ atco: 'X', name: 'Elsewhere' });
     saveFavourite({ atco: 'Y', name: 'Somewhere' });
-    expect(atcos()).toEqual([...BUILT_IN, 'X', 'Y']);
+    expect(atcos()).toEqual(['X', 'Y']);
+    expect(getFavourite('Y')?.name).toBe('Somewhere');
     removeFavourite('X');
-    expect(atcos()).toEqual([...BUILT_IN, 'Y']);
+    expect(atcos()).toEqual(['Y']);
   });
 
-  it('never duplicate a built-in stop', () => {
-    saveFavourite({ atco: COLBERT, name: 'Colbert again' });
-    expect(atcos()).toEqual(BUILT_IN);
+  it('never duplicate a stop', () => {
+    saveFavourite({ atco: 'X', name: 'Elsewhere' });
+    saveFavourite({ atco: 'X', name: 'Elsewhere again' });
+    expect(getFavourites()).toEqual([{ atco: 'X', name: 'Elsewhere again' }]);
+  });
+
+  it('ignore extra fields stored by older versions', () => {
+    useStorage({ favourites: JSON.stringify([{ atco: 'X', name: 'Elsewhere', routes: ['10'] }]) });
+    expect(getFavourites()).toEqual([{ atco: 'X', name: 'Elsewhere' }]);
   });
 });

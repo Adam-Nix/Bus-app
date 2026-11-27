@@ -1,23 +1,17 @@
 # Next Bus
 
 A small, installable web app (PWA) that shows live bus departures for your
-stop, using the same data as [bustimes.org](https://bustimes.org). The stop
-name at the top is a dropdown of stops. These five are built in and can't be
-removed:
-
-- **Limerick TUS** (where the app opens): buses into the city
-- **City (Harvey's Quay)**: buses from the city
-- **Mayorstone Upper**: buses arriving from the city
-- **Colbert Station**: the 55 to Waterford
-- **Pallasgreen**: buses back to Limerick
-
-You can save any other stop in Great Britain or Ireland.
+stop, using the same data as [bustimes.org](https://bustimes.org). Nothing is
+saved to start with: save any stop in Great Britain or Ireland and the stop
+name at the top becomes a dropdown of your saved stops. The app opens on the
+first one you saved, or on the Stops page if you haven't saved any.
 
 - **Stops** (top right) finds stops near you or by code; **Back to
   departures** returns to the board.
-- Tap **Save** on any other stop to add it below them; those can be removed.
-- Buttons for each route with a bus leaving soon filter the board. Each stop
-  always opens on its usual route (the 302, or the 55 at Colbert Station).
+- Tap **Save** on a stop to add it to the dropdown; tap it again (or the ✕ on
+  the Stops page) to remove it.
+- Buttons for each route with a bus leaving soon filter the board. Every stop
+  opens showing all routes.
 
 - Big "next bus" countdown, with live tracking, how many stops away the bus
   is, and whether it's running late.

@@ -59,57 +59,12 @@ export interface SavedStop {
   name: string;
 }
 
-// The 302 is a loop from the city out past the college and back. It's caught
-// into the city at Limerick TUS (on the Cratloe Road; bustimes.org calls it
-// Mayorstone Upper), and back from Harvey's Quay to Mayorstone Upper, the
-// stop across the road.
-const LIMERICK_TUS = '8400B6069401';
-const HARVEYS_QUAY = '8400B610001';
-const MAYORSTONE_UPPER = '8400B6068701';
-const COLBERT_STATION_DEPARTURES = '8400B635041';
-// The Limerick-bound side, for the 55 (and 347) back into town.
-const PALLASGREEN_TO_LIMERICK = '8410B3501101';
-
-/**
- * Built into the app: always in the dropdown, in this order, and can't be
- * removed. The first is where the app opens.
- */
-export const BUILT_IN_STOPS: readonly SavedStop[] = [
-  { atco: LIMERICK_TUS, name: 'Limerick TUS' },
-  { atco: HARVEYS_QUAY, name: "City (Harvey's Quay)" },
-  { atco: MAYORSTONE_UPPER, name: 'Mayorstone Upper' },
-  { atco: COLBERT_STATION_DEPARTURES, name: 'Colbert Station' },
-  { atco: PALLASGREEN_TO_LIMERICK, name: 'Pallasgreen' },
-];
-
-const DEFAULT_ROUTES: Record<string, string[]> = {
-  [LIMERICK_TUS]: ['302'],
-  [HARVEYS_QUAY]: ['302'],
-  [MAYORSTONE_UPPER]: ['302'],
-  [COLBERT_STATION_DEPARTURES]: ['55'],
-};
-
-// Stops earlier versions saved automatically and that are no longer used.
-const RETIRED_STOPS = new Set(['8400B6370801', '8400B6370801,8400B6069401']);
-
-// Holds only the stops people saved themselves. Older versions also stored
-// the built-in stops here; those entries are skipped when reading.
 const FAVOURITES_KEY = 'favourites';
 const LAST_STOP_KEY = 'lastStop';
 
-export function isBuiltIn(atco: string): boolean {
-  return BUILT_IN_STOPS.some((b) => b.atco === atco);
-}
-
-function getOwnStops(): SavedStop[] {
-  return (readJson<SavedStop[]>(FAVOURITES_KEY) ?? [])
-    .filter((f) => !isBuiltIn(f.atco) && !RETIRED_STOPS.has(f.atco))
-    .map(({ atco, name }) => ({ atco, name }));
-}
-
-/** Built-in stops first, then any the user saved. */
+/** The stops the user saved, in the order they saved them. */
 export function getFavourites(): SavedStop[] {
-  return [...BUILT_IN_STOPS.map((b) => ({ ...b })), ...getOwnStops()];
+  return (readJson<SavedStop[]>(FAVOURITES_KEY) ?? []).map(({ atco, name }) => ({ atco, name }));
 }
 
 export function getFavourite(atco: string): SavedStop | undefined {
@@ -117,14 +72,12 @@ export function getFavourite(atco: string): SavedStop | undefined {
 }
 
 export function saveFavourite(stop: SavedStop): void {
-  if (isBuiltIn(stop.atco)) return;
-  const own = getOwnStops().filter((f) => f.atco !== stop.atco);
-  write(FAVOURITES_KEY, JSON.stringify([...own, stop]));
+  const others = getFavourites().filter((f) => f.atco !== stop.atco);
+  write(FAVOURITES_KEY, JSON.stringify([...others, stop]));
 }
 
-/** Removes a stop the user saved; built-in stops stay. */
 export function removeFavourite(atco: string): void {
-  write(FAVOURITES_KEY, JSON.stringify(getOwnStops().filter((f) => f.atco !== atco)));
+  write(FAVOURITES_KEY, JSON.stringify(getFavourites().filter((f) => f.atco !== atco)));
 }
 
 /** The last stop viewed, for the Stops page's back link. */
@@ -134,16 +87,6 @@ export function getLastStop(): string | null {
 
 export function setLastStop(atco: string): void {
   write(LAST_STOP_KEY, atco);
-}
-
-// --- Route filters -------------------------------------------------------
-
-/**
- * Routes a stop shows when it's opened; empty means every route. Changes on
- * the board last until the stop is left, so it always reopens on these.
- */
-export function defaultRoutes(atco: string): string[] {
-  return DEFAULT_ROUTES[atco] ?? [];
 }
 
 // --- Expiring cache ------------------------------------------------------

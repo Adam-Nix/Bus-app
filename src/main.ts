@@ -19,7 +19,8 @@ function route(): void {
   if (stopMatch) next = `stop:${decodeURIComponent(stopMatch[1])}`;
   else if (hash === '/stops') next = 'stops';
   else {
-    // Always open on the first saved stop; the dropdown switches from there.
+    // Open on the first saved stop (the dropdown switches from there), or on
+    // the Stops page when nothing is saved yet.
     const [home] = getFavourites();
     location.replace(home ? `#/stop/${encodeURIComponent(home.atco)}` : '#/stops');
     return;
@@ -61,8 +62,8 @@ installButton.addEventListener('click', async () => {
 
 updateInstallButton();
 
-// Every launch starts on the first built-in stop. A stop left in the address
-// from last time (possibly one an older version used) would otherwise win.
+// Every launch starts on the first saved stop. A stop left in the address
+// from last time would otherwise win.
 // A refresh is different: it stays on the stop being looked at.
 const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
 if (navigation?.type !== 'reload' && location.hash.startsWith('#/stop/')) {

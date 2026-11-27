@@ -16,7 +16,7 @@ const HOUR = 60 * MINUTE;
 
 /** How far ahead to look for departures. */
 export const HORIZON_MS = 3 * HOUR;
-/** Quiet stops (e.g. Pallasgreen) look this far ahead so they're not near empty. */
+/** Quiet stops (e.g. rural ones) look this far ahead so they're not near empty. */
 export const EXTENDED_HORIZON_MS = 12 * HOUR;
 /** Fewer departures than this (on the routes shown) counts as a quiet stop. */
 const MIN_DEPARTURES = 3;

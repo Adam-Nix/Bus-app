@@ -6,9 +6,7 @@ import {
   cacheGetStale,
   cacheSet,
   getFavourite,
-  defaultRoutes,
   getFavourites,
-  isBuiltIn,
   removeFavourite,
   saveFavourite,
   setLastStop,
@@ -41,7 +39,7 @@ interface State {
   atco: string;
   atcos: string[];
   stops: Record<string, StopInfo>;
-  /** Routes shown; starts at the stop's default each time it's opened. */
+  /** Routes shown; empty means every route. Resets when the stop is left. */
   routes: string[];
   board: Board | null;
   weather: Weather | null;
@@ -94,8 +92,7 @@ function stopSubtitle(s: State): string {
     return Object.keys(s.stops).length ? `Buses from ${s.atcos.map((a) => stopName(s, a)).join(' and ')}` : '';
   }
   const stop = s.stops[s.atco];
-  // Saved stops go by the name they were saved as (bustimes.org calls
-  // Limerick TUS "Mayorstone Upper", for one), so don't contradict it.
+  // Saved stops go by the name they were saved as, so don't contradict it.
   if (!stop || getFavourite(s.atco)) return '';
   // Skip the full name when the title already says it.
   const parts = [stopTitle(s).startsWith(stop.long_name) ? null : stop.long_name];
@@ -298,16 +295,11 @@ function renderHead(s: State): string {
         </label>
         <p class="stop-sub">${escapeHtml(stopSubtitle(s))}</p>
       </div>
-      ${
-        // Built-in stops are always in the dropdown, so there's nothing to toggle.
-        isBuiltIn(s.atco)
-          ? ''
-          : `<button class="save" data-action="favourite" aria-pressed="${Boolean(favourite)}"
+      <button class="save" data-action="favourite" aria-pressed="${Boolean(favourite)}"
         aria-label="Save stop" title="Saved stops appear in this dropdown and on the Stops page">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
         <span aria-hidden="true">${favourite ? 'Saved' : 'Save'}</span>
-      </button>`
-      }
+      </button>
     </div>`;
 }
 
@@ -569,7 +561,7 @@ export function showBoard(container: HTMLElement, atco: string): () => void {
   state = {
     atco,
     atcos,
-    routes: defaultRoutes(atco),
+    routes: [],
     stops: Object.fromEntries(
       atcos.flatMap((a) => {
         const info = cacheGetStale<StopInfo>(`stop:${a}`);
